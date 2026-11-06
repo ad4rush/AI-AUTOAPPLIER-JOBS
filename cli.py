@@ -23,6 +23,7 @@ from engine.referral_drafter import generate_and_save_referral_drafts
 from engine.scheduler import run_single_scrape_and_eval_cycle, run_periodic_daemon
 from engine.microsoft_apply import apply_to_microsoft_job
 from engine.stripe_apply import apply_to_stripe_job
+from engine.barclays_apply import apply_to_barclays_workday
 from engine.ashby_apply import apply_to_ashby_job
 from engine.greenhouse_apply import apply_to_greenhouse_job
 from engine.lever_apply import apply_to_lever_job
@@ -79,6 +80,16 @@ def cmd_apply_stripe(args):
             print("\n[+] Stripe apply procedure STAGED & VALIDATED successfully!")
             print("    👉 EGO-BROWSER TAB: TaskSpace 'stripe_auto_apply' (Profile 1: Main Profile)")
             print("    👉 Action: Open this tab in ego-browser and press Submit.")
+    else:
+        print("\n[!] Application staging encountered issues. Check logs above.")
+
+def cmd_apply_barclays(args):
+    assert_real_candidate_profile()
+    res = apply_to_barclays_workday(args.url, resume_path=args.resume, submit=args.submit)
+    if res.get("success"):
+        print("\n[+] Barclays apply procedure STAGED & VALIDATED successfully!")
+        print("    👉 EGO-BROWSER TAB: TaskSpace 'barclays_apply' (Profile 1: Main Profile)")
+        print("    👉 Action: Confirm Workday verification email, then sign in to complete Step 7/7 Review.")
     else:
         print("\n[!] Application staging encountered issues. Check logs above.")
 
@@ -580,6 +591,11 @@ def main():
     stripe_p.add_argument("--resume", help="Optional tailored PDF resume path")
     stripe_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
 
+    barclays_p = subparsers.add_parser("apply-barclays", help="Auto-apply to Barclays India jobs (Workday)")
+    barclays_p.add_argument("--url", default="https://search.jobs.barclays/job/-/-/13015/98815634656?src=JB-12860", help="Job URL")
+    barclays_p.add_argument("--resume", help="Optional tailored PDF resume path")
+    barclays_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
+
     apply_all_p = subparsers.add_parser("apply-all", help="Unified batch auto-apply across supported company portals")
     apply_all_p.add_argument("--limit", type=int, default=5, help="Max applications to process (default: 5)")
     apply_all_p.add_argument("--auto-tailor", action="store_true", help="Dynamically tailor a resume if one does not exist")
@@ -652,6 +668,8 @@ def main():
         cmd_apply_microsoft(args)
     elif args.command == "apply-stripe":
         cmd_apply_stripe(args)
+    elif args.command == "apply-barclays":
+        cmd_apply_barclays(args)
     elif args.command == "apply-ashby":
         cmd_apply_ashby(args)
     elif args.command == "apply-greenhouse":

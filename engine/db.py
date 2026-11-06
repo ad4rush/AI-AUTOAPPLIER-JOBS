@@ -57,8 +57,17 @@ def init_db():
     conn.commit()
     conn.close()
 
-def generate_canonical_hash(company: str, title: str, url: str) -> str:
-    norm = f"{company.strip().lower()}:{title.strip().lower()}:{url.strip().lower()}"
+def generate_canonical_hash(company: str, title: str, url: str, job_id: str = "") -> str:
+    """
+    CRITICAL DEDUPLICATION POLICY:
+    Never deduplicate on company + title alone!
+    Enterprises (especially Microsoft, Google, Amazon, Meta) post 10+ distinct openings
+    all with the exact same title ('Software Engineer', 'AI Engineer').
+    Deduplication MUST strictly incorporate the unique job requisition URL and job ID.
+    """
+    clean_url = url.strip().lower()
+    clean_id = job_id.strip().lower() if job_id else ""
+    norm = f"{company.strip().lower()}:{title.strip().lower()}:{clean_url}:{clean_id}"
     return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
 def is_job_seen(canonical_hash: str) -> bool:
@@ -72,7 +81,7 @@ def is_job_seen(canonical_hash: str) -> bool:
 def insert_job(job: Dict[str, Any]) -> bool:
     """Inserts a newly discovered job if not already present. Returns True if inserted."""
     canonical_hash = job.get("canonical_hash") or generate_canonical_hash(
-        job["company"], job["title"], job["url"]
+        job["company"], job["title"], job["url"], job.get("job_id", "")
     )
     if is_job_seen(canonical_hash):
         return False
