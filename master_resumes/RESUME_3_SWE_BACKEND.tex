@@ -1,0 +1,141 @@
+\documentclass[10pt]{article}
+\usepackage{enumitem}
+\usepackage[utf8]{inputenc}
+\usepackage{fontspec}
+\setmainfont{Lato}[
+  Path = /Users/adarsh/Library/Fonts/,
+  Extension = .ttf,
+  UprightFont = Lato-Regular,
+  BoldFont = Lato-Bold,
+  ItalicFont = Lato-Italic,
+  BoldItalicFont = Lato-BoldItalic
+]
+\pagenumbering{gobble}
+\usepackage{geometry}
+\usepackage[hidelinks]{hyperref}
+\geometry{a4paper, margin=0.38in, top=0.22in, bottom=0.20in}
+\hypersetup{
+    colorlinks=true, 
+    allcolors=blue
+}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fontawesome}
+\linespread{0.96}
+
+\definecolor{sectioncolor}{RGB}{0, 51, 102}
+\definecolor{subheadingcolor}{RGB}{85, 85, 85}
+
+\titleformat{\section}
+  {\normalsize\bfseries\color{sectioncolor}\uppercase}
+  {}{0em}{}
+  [{\titlerule[0.4pt]}]
+
+\titlespacing{\section}{0pt}{4pt}{2.5pt}
+
+\setlist[itemize]{
+    leftmargin=1.2em,
+    labelsep=0.4em,
+    itemsep=0.4pt,
+    parsep=0pt,
+    topsep=1.0pt,
+    after=\vspace{0.12em}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+
+\begin{document}
+
+% --- HEADER ---
+\begin{center}
+    {\LARGE \textbf{Candidate Name}} \\[0.2em]
+    {\small
+    \faEnvelope \ \href{mailto:candidate@example.com}{candidate@example.com} \hspace{3pt} | \hspace{3pt}
+    \faPhone \ +1-555-0199 \hspace{3pt} | \hspace{3pt}
+    \faGithub \ \href{https://github.com/username}{github.com/username} \hspace{3pt} | \hspace{3pt}
+    \faLinkedin \ \href{https://linkedin.com/in/username}{linkedin.com/in/username} \hspace{3pt} | \hspace{3pt}
+    \faMapMarker \ San Francisco, CA / Remote
+    }
+\end{center}
+\vspace{-1.2em}
+
+% --- EXPERIENCE ---
+\section*{Experience}
+
+\textbf{Software Engineer -- Distributed Systems \& Platform} \hfill \textcolor{subheadingcolor}{\textit{Jan 2026 -- Present (Full-Time)}} \\
+\textit{High-Growth Tech Enterprise | San Francisco, CA}
+\begin{itemize}
+    \item Architected high-throughput, near-real-time \textbf{ETL/ELT data pipelines} and enterprise \textbf{data lakehouse} on S3 using \textbf{Apache Spark}, \textbf{AWS Glue}, \textbf{Kafka CDC (Debezium)}, \textbf{Apache Hudi}, and \textbf{Parquet}, orchestrated via standardized \textbf{FastAPI REST microservices}; enabled incremental upserts across \textbf{billions of records}
+    \item Spearheaded \textbf{Zero-KTLO automation} across data infrastructure, boosting \textbf{AWS Glue ETL pipeline reliability} from \textbf{94\% to 99.8\%} while cutting operating infrastructure costs by \textbf{\$300/day} through dynamic resource allocation
+    \item Optimized \textbf{distributed backend architecture} by routing \textbf{ECS microservices} to read from the \textbf{same-AZ Kafka broker} instead of cross-AZ partition leaders, eliminating \textbf{cross-AZ network transfer} and saving \textbf{\$5,000+/month} in infrastructure costs
+    \item Built an enterprise \textbf{Text-to-SQL engine} grounded in domain \textbf{ontologies} and entity graphs, generating and executing complex \textbf{SQL} on \textbf{Amazon Athena} and slashing BI turnaround by \textbf{35\%}; exposed API endpoints to Claude via Model Context Protocol (\textbf{MCP})
+    \item Automated \textbf{LLM-driven event extraction} for \textbf{650+ daily partner communications} and \textbf{100,000+ customer notes} via \textbf{AWS Lambda}; implemented \textbf{prompt caching} (KV-cache reuse) to cut inference latency and costs by \textbf{70\%+} and manual audit overhead by \textbf{57\%}
+    \item Developed a full-duplex \textbf{conversational voice agent} on \textbf{AWS Nova Sonic} with real-time \textbf{RAG} and deterministic tool-calling for automated customer routing; achieved consistent \textbf{p95 latency under 600ms}
+\end{itemize}
+\vspace{-0.3em}
+
+\textbf{Backend \& Systems Engineer Intern} \hfill \textcolor{subheadingcolor}{\textit{May 2025 -- Oct 2025}} \\
+\textit{Research Institute to Commercialization Lab | Advisor: Lead Faculty Advisor}
+\begin{itemize}
+    \item Engineered a scalable research commercialization platform powered by \textbf{FastAPI REST APIs} and a \textbf{multi-agent AI pipeline} for automated paper parsing, patent analysis, and industry matchmaking; selected for \textbf{competitive innovation grant}
+    \item Deployed a document intelligence service in \textbf{PyTorch} with \textbf{OCR}, \textbf{LoRA}, and \textbf{PEFT 8-bit quantization}, achieving \textbf{97\% extraction accuracy}, 75\% model compression, and \textbf{2$\times$ faster API throughput}
+\end{itemize}
+\vspace{-0.3em}
+
+\textbf{Independent Systems \& Research Project} \hfill \textcolor{subheadingcolor}{\textit{Aug 2024 -- Dec 2024}} \\
+\textit{Academic University $\times$ Industry Research Lab}
+\begin{itemize}
+    \item Fine-tuned \textbf{R-BERT} in \textbf{PyTorch} with \textbf{LoRA} and span-based \textbf{embeddings}, outperforming baseline models by \textbf{6 F1 points}; indexed and validated \textbf{25,000+ relational entities} via vector search, reducing false positives by \textbf{20\%}
+\end{itemize}
+\vspace{-0.45em}
+
+% --- EDUCATION ---
+\section*{Education}
+\textbf{Top Tier Institute of Technology} \hfill \textit{2022 -- 2026} \\
+B.Tech, Computer Science and Artificial Intelligence \hfill \textbf{GPA: 3.8 / 4.0} \\[0.05em]
+{\small \textit{Relevant Coursework: Data Structures \& Algorithms, Operating Systems, DBMS, Distributed Systems, Machine Learning, Computer Networks}}
+\vspace{-0.35em}
+
+% --- SELECTED PROJECTS ---
+\section*{Selected Projects}
+
+\textbf{Autonomous Multi-Platform Web Automation Engine} \hfill \href{https://github.com/username/project}{\faGithub} \textcolor{subheadingcolor}{\textit{2026 -- Present}} \\
+\textit{Python, Playwright, Chromium DevTools, SQLite, Claude 3.5 Sonnet, Tectonic}
+\begin{itemize}
+    \item Architected a high-leverage application platform automating deterministic multi-portal workflows across \textbf{Greenhouse}, \textbf{Ashby}, \textbf{Lever}, and custom ATS portals; engineered automated DOM analyzers and self-healing schema selectors
+    \item Built dynamic resume tailoring with \textbf{Claude 3.5 Sonnet} and compiled strict 1-page XeTeX PDFs via \textbf{Tectonic} with layout-aware verification
+\end{itemize}
+\vspace{-0.25em}
+
+\textbf{Recruitment Portal \& Candidate Knowledge Graph} \hfill \href{https://github.com/username/portal}{\faGithub} \textcolor{subheadingcolor}{\textit{2025 -- 2026}} \\
+\textit{React, TypeScript, FastAPI, Docker, AWS EC2, Neo4j, FAISS, Gemini RAG, GCN}
+\begin{itemize}
+    \item Built and shipped a full-stack AI recruitment platform using \textbf{React} and 6 modular \textbf{FastAPI} microservices on \textbf{AWS EC2} with OAuth, responsive component state management, and CI/CD; successfully onboarded \textbf{160+ university students}
+    \item Formulated a \textbf{Gemini RAG} pipeline with \textbf{FAISS} semantic vector search and a \textbf{Neo4j knowledge graph}; trained a \textbf{GCN} for link prediction
+\end{itemize}
+\vspace{-0.25em}
+
+\textbf{ML Serving Diagnostics \& Observability Toolkit} \hfill \href{https://github.com/username/ml-monitoring}{\faGithub} \textcolor{subheadingcolor}{\textit{2025}} \\
+\textit{Python, FastAPI, Docker, Kubernetes, TensorFlow, PyTorch, GCP}
+\begin{itemize}
+    \item Built a \textbf{Python} telemetry toolkit for containerized backend services on \textbf{Kubernetes}, classifying root causes of latency spikes, OOMs, and shape mismatches; cut Mean Time to Diagnose (MTTD) by \textbf{40\%} across 5 live test services
+\end{itemize}
+\vspace{-0.45em}
+
+% --- TECHNICAL SKILLS ---
+\section*{Technical Skills}
+\textbf{Languages:} \textbf{Python}, \textbf{Golang (Go)}, \textbf{TypeScript}, \textbf{JavaScript}, \textbf{SQL} (complex queries, indexing, window functions), Java, C, C++, Bash \\
+\textbf{Backend \& Distributed Systems:} \textbf{FastAPI}, \textbf{REST APIs}, \textbf{Microservices}, \textbf{Distributed Systems}, \textbf{Docker}, \textbf{Kubernetes}, \textbf{AWS} (Glue, Athena, S3, Lambda, ECS, EC2), GCP \\
+\textbf{Data Engineering:} \textbf{Apache Spark}, \textbf{Apache Kafka}, \textbf{Debezium (CDC)}, \textbf{Apache Hudi}, \textbf{Parquet}, \textbf{Amazon Athena}, \textbf{ETL/ELT}, \textbf{Data Lakehouse}, \textbf{DynamoDB} \\
+\textbf{AI / ML \& Developer Tooling:} \textbf{PyTorch}, \textbf{LLMs}, \textbf{RAG}, \textbf{AI Agents}, \textbf{Tool Calling}, \textbf{MCP}, \textbf{Prompt Caching}, \textbf{Vector Search (FAISS)}, \textbf{LoRA}, \textbf{Neo4j}
+\vspace{-0.35em}
+
+% --- ACHIEVEMENTS & LEADERSHIP ---
+\section*{Achievements \& Leadership}
+\textbf{National Graduate Aptitude Test:} Top \textbf{0.2\% Nationwide} (CS/IT) \hfill \textit{2026} \\[0.1em]
+\textbf{National Engineering Entrance Examination:} Top \textbf{99.5 percentile} among 870,000+ candidates \hfill \textit{2022} \\[0.1em]
+\textbf{Competitive Programming:} Codeforces \textbf{Specialist}, 800+ solved algorithmic problems on LeetCode and Codeforces \hfill \textit{2023 -- 2026} \\[0.1em]
+\textbf{Operations Head}, University Technical & Cultural Festival -- Led 30-member cross-functional team managing logistics for 30,000+ attendees \hfill \textit{2025}
+
+\end{document}

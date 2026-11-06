@@ -1,0 +1,60 @@
+{
+  "description": "Registry of career portals and job websites monitored 4-5 times daily",
+  "scraping_frequency_hours": 4.5,
+  "runs_per_day": 5,
+  "greenhouse_boards": [
+    { "company": "Anthropic", "board_token": "anthropic", "enabled": true },
+    { "company": "Databricks", "board_token": "databricks", "enabled": true },
+    { "company": "Stripe", "board_token": "stripe", "enabled": true },
+    { "company": "Figma", "board_token": "figma", "enabled": true },
+    { "company": "Notion", "board_token": "notion", "enabled": true },
+    { "company": "Scale AI", "board_token": "scaleai", "enabled": true },
+    { "company": "Glean", "board_token": "glean", "enabled": true },
+    { "company": "Pinecone", "board_token": "pinecone", "enabled": true },
+    { "company": "Cohere", "board_token": "cohere", "enabled": true },
+    { "company": "Modal", "board_token": "modal", "enabled": true },
+    { "company": "Browserbase", "board_token": "browserbase", "enabled": true },
+    { "company": "Vercel", "board_token": "vercel", "enabled": true },
+    { "company": "Postman", "board_token": "postman", "enabled": true },
+    { "company": "Brex", "board_token": "brex", "enabled": true },
+    { "company": "Ramp", "board_token": "ramp", "enabled": true },
+    { "company": "Rippling", "board_token": "rippling", "enabled": true },
+    { "company": "Airtable", "board_token": "airtable", "enabled": true },
+    { "company": "Supabase", "board_token": "supabase", "enabled": true }
+  ],
+  "lever_boards": [
+    { "company": "Perplexity", "board_token": "perplexity", "enabled": true },
+    { "company": "Atlassian", "board_token": "atlassian", "enabled": true },
+    { "company": "Together AI", "board_token": "together", "enabled": true },
+    { "company": "Replicate", "board_token": "replicate", "enabled": true },
+    { "company": "Baseten", "board_token": "baseten", "enabled": true }
+  ],
+  "ashby_boards": [
+    { "company": "OpenAI", "board_token": "openai", "enabled": true },
+    { "company": "LangChain", "board_token": "langchain", "enabled": true },
+    { "company": "Weaviate", "board_token": "weaviate", "enabled": true },
+    { "company": "Qdrant", "board_token": "qdrant", "enabled": true }
+  ],
+  "linkedin_feeds": [
+    {
+      "name": "LinkedIn AI Engineer India",
+      "url": "https://www.linkedin.com/jobs/search/?keywords=AI%20Engineer&location=India&f_E=1%2C2%2C3",
+      "enabled": true
+    },
+    {
+      "name": "LinkedIn Machine Learning Engineer India",
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Machine%20Learning%20Engineer&location=India&f_E=1%2C2%2C3",
+      "enabled": true
+    },
+    {
+      "name": "LinkedIn Data Platform Engineer India",
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Data%20Platform%20Engineer&location=India&f_E=1%2C2%2C3",
+      "enabled": true
+    },
+    {
+      "name": "LinkedIn Backend Engineer India",
+      "url": "https://www.linkedin.com/jobs/search/?keywords=Backend%20Engineer&location=India&f_E=1%2C2%2C3",
+      "enabled": true
+    }
+  ]
+}

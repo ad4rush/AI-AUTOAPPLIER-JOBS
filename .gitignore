@@ -1,0 +1,73 @@
+# ==========================================
+# Byte-compiled / optimized / Python files
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# OS / Editor artifacts
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ==========================================
+# TeX / LaTeX intermediates & compiled artifacts
+# ==========================================
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.xdv
+*.bbl
+*.blg
+
+# ==========================================
+# Personal Candidate Data & Application Tracker (DO NOT PUSH)
+# ==========================================
+# Local application database & status trackers
+data/jobs.db
+data/jobs.db-journal
+data/jobs.db-wal
+data/jobs.db-shm
+data/jobs_found_and_applied.txt
+data/company_apply_procedures/
+
+# Applied job directories & submission metadata
+applied_jobs/
+data/applied_jobs/
+resumes_generated/
+
+# Scraper raw HTML / JD dumps
+data/raw_jobs/
+
+# Private personal profile & Overleaf source
+master_resume/
+*.pdf
+*_white.png
+*.png
+*.jpg
+*.jpeg
+*.JPG
+
+# Local credentials & virtual environments
+.env
+.env.local
+.venv
+env/
+venv/
+ENV/

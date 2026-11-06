@@ -1,0 +1,136 @@
+\ProvidesPackage{apMod}
+
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper, total={7in, 10in}]{geometry}
+\usepackage{amsmath} 
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{tikz}
+\usepackage{graphicx}
+\newcommand{\myRaiseValue}{-2pt}
+
+\renewcommand*{\arraystretch}{1.4}
+\pagenumbering{gobble}
+\definecolor{electricpurple}{RGB}{191, 0, 255}
+\definecolor{grey}{RGB}{36, 41, 46}
+\definecolor{colab}{RGB}{255, 167, 38}
+\definecolor{link}{RGB}{10, 102, 194}
+
+
+\author{Candidate Name}
+
+\hypersetup{
+    colorlinks = true,
+    linkbordercolor = {white}
+}
+
+
+\newenvironment{contained}%
+{%
+\ifx\contain\undefined\else%
+\if\contain1%
+\noindent\minipage{\textwidth}%
+\else%
+\fi%
+\fi}%
+{%
+\ifx\contain\undefined\else%
+\if\contain1%
+\endminipage\hfill%
+\else%
+\fi%
+\fi}%
+
+\newcommand{\sectionC}[1]{{%
+\noindent%
+% \colorbox{gray!30}{
+% \minipage{\textwidth}%
+%     \textbf{#1}
+% \endminipage\hfill%
+% }}%
+\tikzstyle{sectionCstyle} = [fill=gray!30,
+    rectangle, rounded corners, inner sep=5pt, inner ysep=5pt]
+\begin{tikzpicture}
+\node [sectionCstyle] (box){%
+    \begin{minipage}{\textwidth}
+        \large\textbf{#1}
+    \end{minipage}
+};
+\end{tikzpicture}%
+\vspace{-10px}}}
+
+\newcommand{\sectionB}[1]{{%
+\noindent%
+% \colorbox{gray!30}{
+% \minipage{\textwidth}%
+%     \textbf{#1}
+% \endminipage\hfill%
+% }}%
+\tikzstyle{sectionCstyle} = [fill=gray!30,
+    rectangle, rounded corners, inner sep=5pt, inner ysep=5pt]
+\begin{tikzpicture}
+\node [sectionCstyle] (box){%
+    \begin{minipage}{\textwidth}
+        \large\textbf{#1}
+    \end{minipage}
+};
+\end{tikzpicture}%
+\vspace{2px}}}
+
+
+
+
+
+% \newcommand{\cvimage}[1]{%
+%     \setlength{\fboxsep}{0pt}%
+%     \setlength{\fboxrule}{1pt}%
+%     \fbox{\includegraphics[height=100pt, keepaspectratio]{#1}}%
+%     \vspace{10pt}
+% }
+
+\newcommand{\personalinfo}{%
+\begin{center}
+        \textbf{\Large \yourname}\\
+        \vspace{2pt}
+        Roll no. \yourrollno\space$\vert$ \href{mailto:\youremail}{\color{blue!60}\youremail}\\
+        DOB: \yourDOB \space$\vert$ \yourphone\\
+        \youraddress\\
+        \vspace{2pt}
+        \raisebox{-1pt}{\includegraphics[height=10pt, keepaspectratio]{githublogodark.png}}\space\href{\yourgithub}{\color{blue!60} Github} \textbar \hspace{1pt}
+        \raisebox{-1.5pt}{\includegraphics[height=10pt, keepaspectratio]{linkedin.jpg}}\space\href{\yourlinkedin}{\color{blue!60} Linkedin}
+\end{center}
+}%
+
+
+\newcommand{\cvheader}{%
+\minipage{0.18\textwidth}%
+  % \cvimage{\yourphoto}%insert your photo file here
+  \begin{tikzpicture} 
+  
+    \begin{scope}[xshift=7cm]
+        \clip [rounded corners=.3cm] (0,0) rectangle coordinate (centerpoint) (100pt,100pt); 
+        \node [inner sep=100pt] at (centerpoint) {\includegraphics[width=100pt]{\yourphoto}};
+    \end{scope}
+  \end{tikzpicture}
+  \vspace{10pt}
+\endminipage\hfill
+\minipage{0.60\textwidth}%
+    \personalinfo
+\endminipage\hfill
+\minipage{0.18\textwidth}%
+  \begin{frame}{}
+      \includegraphics[width=\linewidth]{iiitdlogo.jpg}
+  \end{frame}
+\endminipage\hfill
+}
+
+\newcommand{\cveducationitem}[4]{%
+\textbf{#1}\newline
+    #2\newline
+    #3
+    & #4\newline\\
+}%
+
+
