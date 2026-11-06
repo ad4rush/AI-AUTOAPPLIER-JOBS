@@ -499,17 +499,17 @@ def cmd_pipeline(args):
     cmd_status()
 
 def cmd_find_linkedin(args):
-    from engine.linkedin_scraper import scrape_linkedin_portal, ingest_scraped_linkedin_jobs, run_linkedin_pipeline
+    from engine.linkedin_scraper import scrape_linkedin_jobs, ingest_scraped_linkedin_jobs, run_linkedin_pipeline
     if args.pipeline:
         print("[*] Running multi-query LinkedIn job discovery pipeline...")
-        res = run_linkedin_pipeline(location=args.location, include_remote=args.remote, profile_id=args.profile)
-        print(f"[+] LinkedIn pipeline finished: {res.get('total_ingested')} new jobs ingested.")
+        res = run_linkedin_pipeline(profile_id=args.profile)
+        print(f"[+] LinkedIn pipeline finished: {res.get('total_ingested', 0)} new jobs ingested.")
     else:
-        print(f"[*] Scraping LinkedIn for '{args.keywords}' (location: {args.location}, remote: {args.remote})...")
-        res = scrape_linkedin_portal(keywords=args.keywords, location=args.location, is_remote=args.remote, profile_id=args.profile)
+        print(f"[*] Scraping LinkedIn (profile: {args.profile})...")
+        res = scrape_linkedin_jobs(max_jobs=15, profile_id=args.profile)
         if res.get("status") == "SUCCESS":
             jobs = res.get("jobs", [])
-            ingested = ingest_scraped_linkedin_jobs(jobs, is_remote=args.remote)
+            ingested = ingest_scraped_linkedin_jobs(jobs)
             print(f"[+] Successfully scraped and evaluated {len(ingested)} LinkedIn jobs.")
         elif res.get("status") == "AUTH_REQUIRED":
             print(f"[!] {res.get('message')}")
