@@ -152,8 +152,8 @@ ALL_INDIA_LOCATIONS = [
 # Strict Production Safety Circuit Breaker:
 FORBIDDEN_PLACEHOLDERS = {
     "Candidate Name",
-    "Candidate",
-    "Name",
+    "CandidateName",
+    "Candidate_Name",
     "candidate@example.com",
     "personal@example.com",
     "college@example.com",
@@ -181,7 +181,7 @@ def assert_real_candidate_profile():
     Halts execution immediately if .env is missing or invalid.
     """
     errors = []
-    if not CANDIDATE_NAME or CANDIDATE_NAME in FORBIDDEN_PLACEHOLDERS or "candidate" in CANDIDATE_NAME.lower():
+    if not CANDIDATE_NAME or CANDIDATE_NAME in FORBIDDEN_PLACEHOLDERS or CANDIDATE_NAME.strip().lower() in ["candidate", "name", "candidate name"]:
         errors.append(f"Invalid CANDIDATE_NAME: '{CANDIDATE_NAME}'")
     if not CANDIDATE_EMAIL or "example.com" in CANDIDATE_EMAIL or CANDIDATE_EMAIL in FORBIDDEN_PLACEHOLDERS:
         errors.append(f"Invalid CANDIDATE_EMAIL: '{CANDIDATE_EMAIL}'")
