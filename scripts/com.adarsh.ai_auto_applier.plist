@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.adarsh.ai_auto_applier</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>{{REPO_DIR}}/cli.py</string>
+        <string>daemon</string>
+        <string>--interval</string>
+        <string>6.0</string>
+        <string>--jitter</string>
+        <string>0.5</string>
+        <string>--watcher-interval</string>
+        <string>10.0</string>
+        <string>--now</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{{REPO_DIR}}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{REPO_DIR}}/data/daemon_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{REPO_DIR}}/data/daemon_stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:{{HOME}}/.local/bin</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>
