@@ -1,13 +1,13 @@
 ---
 name: job-finder-applier
-description: Autonomous job hunting, resume tailoring, and multi-company auto-apply platform for Adarsh Kumar Jha (IIIT-Delhi CS & AI 2026, TBO.com AI Engineer). Executes deterministic auto-applications on Microsoft, Stripe, Ashby, Greenhouse, and Lever portals, integrates real-time ChatGPT consultation in ego-browser Profile 1, Claude Sonnet 3.5 resume tailoring, MCP terminal agent runner, and persistent 24/7 daemon watcher.
+description: Autonomous job hunting, resume tailoring, and multi-company auto-apply platform. Executes deterministic auto-applications on Microsoft, Stripe, Ashby, Greenhouse, and Lever portals, integrates real-time ChatGPT consultation in ego-browser Profile 1, Claude Sonnet 3.5 resume tailoring, MCP terminal agent runner, and persistent 24/7 daemon watcher.
 ---
 
 # Master Job Finder, Tailorer & Auto-Applier Platform Guide
 
 ## 1. System Overview & Core Architecture
 
-This autonomous platform continuously monitors, scrapes, evaluates, dynamically tailors LaTeX resumes for, and auto-applies to top software and AI engineering positions for candidate **Adarsh Kumar Jha**.
+This autonomous platform continuously monitors, scrapes, evaluates, dynamically tailors LaTeX resumes for, and auto-applies to top software and AI engineering positions for the candidate.
 
 - **Repository Root:** `/Users/adarsh/job_finder_applier`
 - **CLI Entrypoint:** [`cli.py`](file:///Users/adarsh/job_finder_applier/cli.py)
@@ -69,11 +69,11 @@ All master templates are stored in [`master_resumes/`](file:///Users/adarsh/job_
    - **Key Focus:** FastAPI REST APIs, Go/Python microservices, Docker, Kubernetes telemetry (MTTD cut by 40%), Neo4j knowledge graph, ACID transactions, PostgreSQL, Redis caching.
 4. **`RESUME_4_GENERAL_ENGINEERING.tex`** (`master_resumes/RESUME_4_GENERAL_ENGINEERING.tex`):
    - **Domain:** General Software Engineering, Core Algorithms, Full-Stack Foundation.
-   - **Key Focus:** Full-stack development, CS fundamentals, GATE 2026 AIR 252, JEE Mains 99.5%ile, LeetCode / Codeforces Specialist (`ad4rsh`).
+   - **Key Focus:** Full-stack development, CS fundamentals, competitive programming, and engineering foundation.
 
 ### 3.2 Master Candidate Dossier
 - **Path:** [`master_resume/MASTER_PROFILE.md`](file:///Users/adarsh/job_finder_applier/master_resume/MASTER_PROFILE.md)
-- Contains complete verified metrics, numbers, KAM note details, grant amounts (INR 40 Lakh NRDC), student counts (166 students), and comprehensive technical tools.
+- Contains complete verified metrics, numbers, KAM note details, grant amounts, and comprehensive technical tools.
 
 ### 3.3 Tailoring Policy (When to Tailor vs Direct Use)
 - **Only tailor a new resume when:**
@@ -109,7 +109,7 @@ The platform queries the candidate's authenticated ChatGPT session in **Profile 
 
 ```bash
 # Consult ChatGPT from CLI
-python3 cli.py consult-chatgpt --prompt "What are the 3 strongest points in Adarsh's profile for an Inngest Distributed Systems Engineer role?"
+python3 cli.py consult-chatgpt --prompt "What are the 3 strongest points in candidate profile for an Inngest Distributed Systems Engineer role?"
 
 # Generate custom pitch
 python3 cli.py generate-pitch --company Inngest --title "Distributed Systems Engineer"

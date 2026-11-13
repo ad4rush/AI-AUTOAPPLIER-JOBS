@@ -79,6 +79,10 @@ CANDIDATE_CURRENT_TITLE = os.getenv("CANDIDATE_CURRENT_TITLE", "")
 CANDIDATE_HONORS = os.getenv("CANDIDATE_HONORS", "")
 CANDIDATE_PRODUCTION_HIGHLIGHTS = os.getenv("CANDIDATE_PRODUCTION_HIGHLIGHTS", "")
 CANDIDATE_RESEARCH_HIGHLIGHTS = os.getenv("CANDIDATE_RESEARCH_HIGHLIGHTS", "")
+CANDIDATE_TARGET_ROLES = os.getenv("CANDIDATE_TARGET_ROLES", "")
+CANDIDATE_MISSION_AND_GOALS = os.getenv("CANDIDATE_MISSION_AND_GOALS", "")
+CANDIDATE_EXCLUSIONS = os.getenv("CANDIDATE_EXCLUSIONS", "")
+CANDIDATE_BACKGROUND_SUMMARY = os.getenv("CANDIDATE_BACKGROUND_SUMMARY", "")
 
 
 def get_candidate_profile_prompt_block() -> str:
@@ -92,6 +96,9 @@ def get_candidate_profile_prompt_block() -> str:
 - Current Role: {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY}
 - Production Highlights: {CANDIDATE_PRODUCTION_HIGHLIGHTS}
 - Prior Research: {CANDIDATE_RESEARCH_HIGHLIGHTS}
+- Target Roles (What to Apply For): {CANDIDATE_TARGET_ROLES}
+- Engineering Mission (What I Want to Do): {CANDIDATE_MISSION_AND_GOALS}
+- Hard Exclusions (Never Apply To): {CANDIDATE_EXCLUSIONS}
 - Multi-Select Location Rule: Whenever multi-select location options exist (especially on Microsoft Eightfold, Ashby, Greenhouse), select ALL available locations in India ({ANS_ALL_INDIA_LOCATIONS}).
 - Custom Resume Policy: "is_worthy_of_custom_resume" is ONLY true for Tier-1 tech giants (Microsoft, Google, Apple, Amazon, OpenAI, Stripe, Scale AI, Databricks, Barclays, Anthropic, Meta) OR >=$75/hr / >=₹30 LPA roles. For standard Tier-2 or startup roles, false."""
 

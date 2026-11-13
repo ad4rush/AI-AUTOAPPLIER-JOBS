@@ -47,8 +47,8 @@ Every tailored resume must visually pop under recruiter scanning. ChatGPT visual
    - `\textbf{\$300/day}` (operating cost savings)
    - `\textbf{\$5,000+/month}` (cross-AZ network transfer savings)
    - `\textbf{p95 latency under 600ms}` (conversational voice agent)
-   - `\textbf{AIR 252}` (GATE 2026 CS/IT nationwide)
-   - `\textbf{4778 (99.5 percentile)}` (JEE Mains)
+   - `\textbf{AIR <rank>}` (Nationwide engineering exam)
+   - `\textbf{<rank> (<percentile> percentile)}` (Competitive entrance exam)
    - `\textbf{billions of records}`
    - `\textbf{650+ daily partner communications}`
    - `\textbf{100,000+ KAM notes}`

@@ -106,6 +106,16 @@ def flush_system_and_memory(verbose: bool = True):
     # 2. SQLite WAL Flush
     flush_sqlite_wal()
 
+    # 2b. Database Deduplication Sweep
+    try:
+        from engine.db import deduplicate_database
+        dups_cleaned = deduplicate_database()
+        if verbose:
+            print(f"  [✓] Deduplication sweep resolved {dups_cleaned} duplicate/multi-city job rows.")
+    except Exception as e:
+        if verbose:
+            print(f"  [-] Deduplication sweep warning: {e}")
+
     # 3. Zombie Process Cleanup
     cleanup_zombie_processes()
 

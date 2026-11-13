@@ -19,11 +19,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine.config import (
     CANDIDATE_NAME,
+    CANDIDATE_FIRST_NAME,
+    CANDIDATE_LAST_NAME,
     CANDIDATE_EMAIL,
     CANDIDATE_PERSONAL_EMAIL,
     CANDIDATE_COLLEGE_EMAIL,
     CANDIDATE_PHONE,
     CANDIDATE_PHONE_PLAIN,
+    CANDIDATE_LOCATION,
+    CANDIDATE_CITY,
     CANDIDATE_LINKEDIN,
     CANDIDATE_GITHUB,
     CANDIDATE_CURRENT_COMPANY,
@@ -35,6 +39,18 @@ from engine.config import (
     ANS_CGPA,
     CANDIDATE_HONORS,
     CANDIDATE_PRODUCTION_HIGHLIGHTS,
+    CANDIDATE_RESEARCH_HIGHLIGHTS,
+    CANDIDATE_TARGET_ROLES,
+    CANDIDATE_MISSION_AND_GOALS,
+    CANDIDATE_EXCLUSIONS,
+    ANS_ALL_INDIA_LOCATIONS,
+    ANS_CURRENT_CTC,
+    ANS_EXPECTED_CTC,
+    ANS_HOURLY_RATE_USD,
+    ANS_NOTICE_PERIOD,
+    ANS_EARLIEST_START_DATE,
+    ANS_WORK_AUTH_INDIA,
+    ANS_SPONSORSHIP_INDIA,
     get_candidate_profile_prompt_block,
     EGO_BROWSER_MAIN_PROFILE_ID,
     DATA_DIR,
@@ -60,7 +76,8 @@ def build_worker_prompt(
 ) -> str:
     """
     Builds an exhaustive, context-complete task assignment prompt for the AGY subagent worker.
-    Includes full candidate dossier, workspace layout, security policies, and exact completion criteria.
+    Includes full candidate dossier, what candidate did, what candidate wants to apply for,
+    what candidate wants to do, strict exclusions, security policies, and exact completion criteria.
     """
     prompt = f"""You are an autonomous Job Application Worker Agent for candidate {CANDIDATE_NAME}.
 You have been delegated the specific job assignment below. Execute it end-to-end completely and autonomously.
@@ -69,27 +86,60 @@ You have been delegated the specific job assignment below. Execute it end-to-end
 CANDIDATE DOSSIER & CONTEXT
 =============================================================================
 - Name: {CANDIDATE_NAME}
+- First Name: {CANDIDATE_FIRST_NAME} | Last Name: {CANDIDATE_LAST_NAME}
 - Email: {CANDIDATE_PERSONAL_EMAIL} (Personal) | {CANDIDATE_COLLEGE_EMAIL} (College/Academic)
-- Phone: {CANDIDATE_PHONE}
+- Phone: {CANDIDATE_PHONE} (Plain digits: {CANDIDATE_PHONE_PLAIN})
+- Location / Address: {CANDIDATE_LOCATION} ({CANDIDATE_CITY}, India)
 - LinkedIn: {CANDIDATE_LINKEDIN}
 - GitHub: {CANDIDATE_GITHUB}
 - Education: {ANS_DEGREE} in {ANS_MAJOR}, {ANS_COLLEGE} ({ANS_GRAD_YEAR}, CGPA: {ANS_CGPA})
-- Current Role: {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY}
-- Key Credentials: {CANDIDATE_HONORS}
-- Core Production Highlights: {CANDIDATE_PRODUCTION_HIGHLIGHTS}
-- Core Tech Stack: Python, Java, C++, Apache Spark, AWS Glue, Kafka CDC (Debezium), Apache Hudi, Amazon Athena, Docker, Kubernetes, PyTorch, FastAPI, RAG, AWS Nova Sonic Voice AI (600ms p95)
-- Location: Delhi, India (open to Gurugram, Bengaluru, Hyderabad, Pune, or Remote)
-- LOCATION SELECTION MANDATE (CRITICAL): When encountering any location preferences (especially on Microsoft Eightfold or any multi-select location field), ALWAYS SELECT ALL AVAILABLE LOCATIONS IN INDIA (Bengaluru, Hyderabad, Noida, Gurugram, Pune, Mumbai, Delhi/NCR, Chennai, etc.). Do not select just one city if multiple Indian locations are allowed.
-- Availability / Joining: Immediate to short notice
-- Work Authorization: Indian Citizen, legally authorized in India. No visa sponsorship required in India.
+- Current Role: {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY} (~9 months production: Jan-May intern, Jun-present full-time)
 - Browser Environment: ego-browser Profile 1 (Profile ID: {EGO_BROWSER_MAIN_PROFILE_ID})
 
 =============================================================================
-SECURITY & PRIVACY RULES (CRITICAL)
+WHAT THE CANDIDATE DID (PRODUCTION & RESEARCH HIGHLIGHTS)
 =============================================================================
-1. Zero PII leaks to Git: Never commit compensation figures, real phone numbers, real residential addresses, or cover letters to git.
-2. All master resumes in master_resumes/ are 1-page strict fit.
-3. Pre-push guard is active. Do not bypass security boundaries.
+- Academic & Exam Honors: {CANDIDATE_HONORS}
+- Production Achievements at {CANDIDATE_CURRENT_COMPANY}:
+  {CANDIDATE_PRODUCTION_HIGHLIGHTS}
+- Deep Learning & Systems Research at {ANS_COLLEGE}:
+  {CANDIDATE_RESEARCH_HIGHLIGHTS}
+- Core Tech Stack: Python, Java, C++, Go, Apache Spark, AWS Glue, Kafka CDC (Debezium), Apache Hudi, Amazon Athena, Docker, Kubernetes, PyTorch, FastAPI, RAG, AWS Nova Sonic Voice AI (600ms p95), MCP (Model Context Protocol).
+
+=============================================================================
+WHAT THE CANDIDATE WANTS TO APPLY FOR (TARGET ROLES)
+=============================================================================
+- Target Roles: {CANDIDATE_TARGET_ROLES}
+- Compensation Expectations: Current CTC {ANS_CURRENT_CTC} | Expected CTC {ANS_EXPECTED_CTC} | US/Remote Contract Hourly: {ANS_HOURLY_RATE_USD}
+- Notice Period / Joining: {ANS_NOTICE_PERIOD} ({ANS_EARLIEST_START_DATE})
+- Work Authorization: Indian Citizen, legally authorized in India ({ANS_WORK_AUTH_INDIA}). No visa sponsorship required in India ({ANS_SPONSORSHIP_INDIA}). Open to US remote contract/W8-BEN roles.
+
+=============================================================================
+WHAT THE CANDIDATE WANTS TO DO (ENGINEERING MISSION & PHILOSOPHY)
+=============================================================================
+{CANDIDATE_MISSION_AND_GOALS}
+
+=============================================================================
+HARD EXCLUSIONS & ANTI-TARGETS (NEVER APPLY TO)
+=============================================================================
+- {CANDIDATE_EXCLUSIONS}
+- If this assigned job matches any hard exclusion, immediately abort with status SKIPPED and record the exclusion reason.
+
+=============================================================================
+LOCATION SELECTION MANDATE (CRITICAL)
+=============================================================================
+When encountering any location preferences (especially on Microsoft Eightfold, Ashby, Greenhouse, or any multi-select location field),
+ALWAYS SELECT ALL AVAILABLE LOCATIONS IN INDIA ({ANS_ALL_INDIA_LOCATIONS}).
+Do not select just one city if multiple Indian locations are allowed.
+
+=============================================================================
+SECURITY & ANTI-PLACEHOLDER MANDATE (CRITICAL)
+=============================================================================
+1. ABSOLUTELY ZERO PLACEHOLDERS: Every single form field MUST be filled with real candidate facts.
+   Never use generic placeholders, fake dummy numbers, or test emails.
+   The in-browser audit and safety circuit breaker will permanently halt if any dummy value is detected.
+2. Zero PII leaks to Git: Never commit compensation figures, real phone numbers, real residential addresses, or custom cover letters to git.
+3. Master Resumes in master_resumes/ are 1-page strict fit.
 
 =============================================================================
 YOUR ASSIGNED JOB TARGET

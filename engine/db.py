@@ -78,26 +78,71 @@ def init_db():
     conn.commit()
     conn.close()
 
+def normalize_job_url(url: str) -> str:
+    """
+    Strips tracking query parameters (utm_*, ref, source, etc.),
+    fragments, and trailing slashes for deterministic deduplication.
+    """
+    if not url:
+        return ""
+    try:
+        from urllib.parse import urlparse, parse_qsl, urlunparse
+        parsed = urlparse(url.strip())
+        ignored = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "ref", "source", "gh_src", "t", "source_id"}
+        kept_q = [(k, v) for k, v in parse_qsl(parsed.query) if k.lower() not in ignored]
+        kept_q.sort(key=lambda x: x[0].lower())
+        query_str = "&".join(f"{k}={v}" for k, v in kept_q)
+        return urlunparse((
+            parsed.scheme.lower() or "https",
+            parsed.netloc.lower(),
+            parsed.path.rstrip("/"),
+            "",
+            query_str,
+            ""
+        ))
+    except Exception:
+        return url.strip().lower().rstrip("/")
+
 def generate_canonical_hash(company: str, title: str, url: str, job_id: str = "") -> str:
     """
-    CRITICAL DEDUPLICATION POLICY:
-    Never deduplicate on company + title alone!
-    Enterprises (especially Microsoft, Google, Amazon, Meta) post 10+ distinct openings
-    all with the exact same title ('Software Engineer', 'AI Engineer').
-    Deduplication MUST strictly incorporate the unique job requisition URL and job ID.
+    Deterministic deduplication hash incorporating normalized company, title, and cleaned URL.
     """
-    clean_url = url.strip().lower()
-    clean_id = job_id.strip().lower() if job_id else ""
-    norm = f"{company.strip().lower()}:{title.strip().lower()}:{clean_url}:{clean_id}"
+    clean_url = normalize_job_url(url)
+    clean_co = re.sub(r'[^a-zA-Z0-9]', '', company.strip().lower())
+    clean_title = re.sub(r'[^a-zA-Z0-9]', '', title.strip().lower())
+    norm = f"{clean_co}:{clean_title}:{clean_url}"
     return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
-def is_job_seen(canonical_hash: str) -> bool:
+def is_job_seen(canonical_hash: str, company: str = "", title: str = "", url: str = "") -> bool:
+    """
+    Checks if a job has already been discovered, processed, or applied to.
+    Prevents duplicate entries across aggregators, tracking parameters, and multi-location postings.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM jobs WHERE canonical_hash = ?", (canonical_hash,))
-    row = cursor.fetchone()
+    if cursor.fetchone():
+        conn.close()
+        return True
+
+    if url:
+        clean_url = normalize_job_url(url)
+        cursor.execute("SELECT 1 FROM jobs WHERE url = ? OR url LIKE ?", (clean_url, f"{clean_url}?%"))
+        if cursor.fetchone():
+            conn.close()
+            return True
+
+    if company and title:
+        cursor.execute(
+            "SELECT 1 FROM jobs WHERE lower(trim(company)) = ? AND lower(trim(title)) = ? AND status IN ('APPLIED', 'STAGED', 'STAGED_FOR_REVIEW', 'TAILORED', 'CLOSED')",
+            (company.strip().lower(), title.strip().lower())
+        )
+        if cursor.fetchone():
+            conn.close()
+            return True
+
     conn.close()
-    return row is not None
+    return False
 
 ALLOWED_JOB_COLUMNS = {
     "job_id", "canonical_hash", "company", "title", "location", "url",
@@ -116,9 +161,15 @@ def maybe_update_text_summary(force: bool = False, min_interval_sec: float = 30.
 
 def insert_job(job: Dict[str, Any], refresh_summary: bool = False) -> bool:
     """Inserts a newly discovered job atomically if not already present. Returns True if inserted."""
+    clean_url = normalize_job_url(job.get("url", ""))
+    job["url"] = clean_url or job.get("url", "")
+
     canonical_hash = job.get("canonical_hash") or generate_canonical_hash(
         job["company"], job["title"], job["url"], job.get("job_id", "")
     )
+
+    if is_job_seen(canonical_hash, job.get("company", ""), job.get("title", ""), job.get("url", "")):
+        return False
 
     now = datetime.now().isoformat()
     conn = get_db_connection()
@@ -386,3 +437,58 @@ def update_dispatch_status(dispatch_id: int, status: str, notes: Optional[str] =
         cursor.execute("UPDATE agent_dispatches SET status = ?, updated_at = ? WHERE id = ?", (status, now, dispatch_id))
     conn.commit()
     conn.close()
+
+def deduplicate_database() -> int:
+    """
+    Scans the database for duplicate postings across companies, titles, and locations.
+    Keeps the best record (prioritizing APPLIED/STAGED, India/Remote locations, higher match score)
+    and marks redundant multi-city/cross-portal duplicates as SKIPPED.
+    Returns the count of resolved duplicate rows.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT lower(trim(company)), lower(trim(title)), count(*)
+        FROM jobs
+        GROUP BY lower(trim(company)), lower(trim(title))
+        HAVING count(*) > 1
+    ''')
+    dup_groups = c.fetchall()
+    total_marked = 0
+
+    for co, title, _ in dup_groups:
+        c.execute('''
+            SELECT job_id, location, status, match_score, created_at 
+            FROM jobs 
+            WHERE lower(trim(company)) = ? AND lower(trim(title)) = ?
+            ORDER BY 
+                CASE 
+                    WHEN status IN ('APPLIED', 'STAGED', 'STAGED_FOR_REVIEW') THEN 1
+                    WHEN status = 'TAILORED' THEN 2
+                    WHEN status = 'EVALUATED' THEN 3
+                    ELSE 4
+                END,
+                CASE
+                    WHEN lower(location) LIKE '%india%' OR lower(location) LIKE '%bengaluru%' OR lower(location) LIKE '%remote%' THEN 1
+                    ELSE 2
+                END,
+                match_score DESC,
+                created_at DESC
+        ''', (co, title))
+        rows = c.fetchall()
+        keeper = rows[0]
+        duplicates = rows[1:]
+        for d in duplicates:
+            if d[2] not in ('APPLIED', 'STAGED', 'STAGED_FOR_REVIEW'):
+                c.execute('''
+                    UPDATE jobs 
+                    SET status = 'SKIPPED', priority_level = 'SKIP', notes = 'Duplicate posting of ' || ?
+                    WHERE job_id = ?
+                ''', (keeper[0], d[0]))
+                total_marked += 1
+
+    conn.commit()
+    conn.close()
+    if total_marked > 0:
+        maybe_update_text_summary(force=True)
+    return total_marked
