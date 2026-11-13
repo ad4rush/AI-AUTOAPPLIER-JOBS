@@ -51,6 +51,7 @@ from engine.config import (
     CANDIDATE_RESEARCH_HIGHLIGHTS,
     ANS_ALL_INDIA_LOCATIONS,
     get_candidate_profile_prompt_block,
+    resolve_candidate_tokens,
 )
 
 CHATGPT_SCRIPTS_DIR = DATA_DIR / "company_apply_procedures"
@@ -210,6 +211,7 @@ def query_chatgpt(
     and returning the assistant's text response.
     """
     target_profile = profile_id or EGO_BROWSER_MAIN_PROFILE_ID
+    prompt = resolve_candidate_tokens(prompt)
     escaped_prompt = json.dumps(prompt)
 
     node_script = f"""

@@ -102,6 +102,50 @@ def get_candidate_profile_prompt_block() -> str:
 - Multi-Select Location Rule: Whenever multi-select location options exist (especially on Microsoft Eightfold, Ashby, Greenhouse), select ALL available locations in India ({ANS_ALL_INDIA_LOCATIONS}).
 - Custom Resume Policy: "is_worthy_of_custom_resume" is ONLY true for Tier-1 tech giants (Microsoft, Google, Apple, Amazon, OpenAI, Stripe, Scale AI, Databricks, Barclays, Anthropic, Meta) OR >=$75/hr / >=₹30 LPA roles. For standard Tier-2 or startup roles, false."""
 
+
+def resolve_candidate_tokens(prompt: str) -> str:
+    """
+    Dynamically resolves generic references ('candidate profile', 'candidate\\'s',
+    'candidate name', 'the candidate', '{candidate_name}') to the real candidate
+    name and details loaded from .env at runtime.
+    Allows documentation, CLI commands, and scripts to remain 100% free of hardcoded PII
+    while ensuring ChatGPT, Claude, and Gemini receive the real candidate identity.
+    """
+    if not prompt or not isinstance(prompt, str):
+        return prompt
+    if not CANDIDATE_NAME:
+        return prompt
+
+    resolved = prompt
+    # Multi-word candidate phrases
+    resolved = re.sub(r"\bthe candidate['’]s profile\b", f"{CANDIDATE_NAME}'s profile", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate['’]s profile\b", f"{CANDIDATE_NAME}'s profile", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate profile\b", f"{CANDIDATE_NAME}'s profile", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bthe candidate['’]s resume\b", f"{CANDIDATE_NAME}'s resume", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate['’]s resume\b", f"{CANDIDATE_NAME}'s resume", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate resume\b", f"{CANDIDATE_NAME}'s resume", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate['’]s\b", f"{CANDIDATE_NAME}'s", resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bthe candidate\b", CANDIDATE_NAME, resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\bcandidate name\b", CANDIDATE_NAME, resolved, flags=re.IGNORECASE)
+    if CANDIDATE_EMAIL:
+        resolved = re.sub(r"\bcandidate email\b", CANDIDATE_EMAIL, resolved, flags=re.IGNORECASE)
+    if CANDIDATE_PHONE:
+        resolved = re.sub(r"\bcandidate phone\b", CANDIDATE_PHONE, resolved, flags=re.IGNORECASE)
+    if CANDIDATE_CURRENT_COMPANY:
+        resolved = re.sub(r"\bcandidate company\b", CANDIDATE_CURRENT_COMPANY, resolved, flags=re.IGNORECASE)
+
+    # Bracket / template format substitutions
+    resolved = re.sub(r"\{candidate_name\}", CANDIDATE_NAME, resolved, flags=re.IGNORECASE)
+    resolved = re.sub(r"\{candidate\}", CANDIDATE_NAME, resolved, flags=re.IGNORECASE)
+    if CANDIDATE_EMAIL:
+        resolved = re.sub(r"\{candidate_email\}", CANDIDATE_EMAIL, resolved, flags=re.IGNORECASE)
+    if CANDIDATE_PHONE:
+        resolved = re.sub(r"\{candidate_phone\}", CANDIDATE_PHONE, resolved, flags=re.IGNORECASE)
+
+    # Standalone candidate keyword
+    resolved = re.sub(r"\bcandidate\b", CANDIDATE_NAME, resolved, flags=re.IGNORECASE)
+    return resolved
+
 # Standard Form Answers (Loaded from .env for automated application form fillers)
 ANS_WORK_AUTH_INDIA = os.getenv("ANS_WORK_AUTH_INDIA", "Yes")
 ANS_SPONSORSHIP_INDIA = os.getenv("ANS_SPONSORSHIP_INDIA", "No")

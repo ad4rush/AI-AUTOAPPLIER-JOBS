@@ -515,8 +515,10 @@ def cmd_consult_chatgpt(args):
         print("[!] Error: Either provide --prompt OR provide --company and --title (--jd).")
         return
 
-    print(f"[*] Querying ChatGPT in Profile 1 with prompt: {args.prompt[:100]}...")
-    ans = query_chatgpt(args.prompt)
+    from engine.config import resolve_candidate_tokens
+    resolved_prompt = resolve_candidate_tokens(args.prompt)
+    print(f"[*] Querying ChatGPT in Profile 1 with prompt: {resolved_prompt[:100]}...")
+    ans = query_chatgpt(resolved_prompt)
     print("\n" + "=" * 60)
     print("CHATGPT RESPONSE:")
     print("=" * 60)

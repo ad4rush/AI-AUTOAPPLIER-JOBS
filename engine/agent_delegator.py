@@ -56,7 +56,8 @@ from engine.config import (
     DATA_DIR,
     LOGS_DIR,
     assert_real_candidate_profile,
-    verify_script_zero_placeholders
+    verify_script_zero_placeholders,
+    resolve_candidate_tokens
 )
 from engine.db import get_job_by_id, record_agent_dispatch, update_job_status
 
@@ -205,6 +206,7 @@ def delegate_job_to_agent(
         archetype=archetype
     )
 
+    prompt = resolve_candidate_tokens(prompt)
     verify_script_zero_placeholders(prompt, "Agent Delegator Worker Prompt")
 
     convo = conversation_id or f"delegated-{job_id}-{int(datetime.now().timestamp())}"
