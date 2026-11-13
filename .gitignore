@@ -1,0 +1,113 @@
+# ==========================================
+# Byte-compiled / optimized / Python files
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# OS / Editor artifacts
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ==========================================
+# TeX / LaTeX intermediates & compiled artifacts
+# ==========================================
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.xdv
+*.bbl
+*.blg
+
+# ==========================================
+# Personal Candidate Data & Application Tracker (DO NOT PUSH)
+# ==========================================
+# Local application database & status trackers
+data/jobs.db
+data/jobs.db-journal
+data/jobs.db-wal
+data/jobs.db-shm
+data/jobs_found_and_applied.txt
+data/*.txt
+data/*.json
+!data/remote_agent_handoff.json
+!data/target_websites.json
+data/company_apply_procedures/
+data/generated_scripts/
+
+# Applied job directories & submission metadata
+applied_jobs/
+data/applied_jobs/
+data/cover_letters/
+resumes_generated/
+
+# Scraper raw HTML / JD dumps
+data/raw_jobs/
+
+# Private personal profile, master resumes, & Overleaf source
+master_resume/
+master_resumes/
+data/resume_scores/
+scripts/extract_rw_score.js
+*.pdf
+*_white.png
+*.png
+*.jpg
+*.jpeg
+*.JPG
+
+# Auto-generated dynamic apply scripts (keep core appliers)
+engine/*_apply.py
+!engine/amazon_apply.py
+!engine/ashby_apply.py
+!engine/barclays_apply.py
+!engine/breezy_apply.py
+!engine/greenhouse_apply.py
+!engine/jazzhr_apply.py
+!engine/lever_apply.py
+!engine/manatal_apply.py
+!engine/micro1_apply.py
+!engine/microsoft_apply.py
+!engine/remote_apply.py
+!engine/rippling_apply.py
+!engine/stripe_apply.py
+!engine/turing_apply.py
+!engine/manatal_apply.py
+!engine/micro1_apply.py
+!engine/breezy_apply.py
+
+# Temporary scratch directory
+scratch/
+
+# Local credentials & virtual environments
+.env
+.env.local
+.venv
+env/
+venv/
+ENV/
+
+# Amazon Credentials & Passwords
+*amazon*passowrd*
+*amazon*password*
+amazon passowrds.text
+amazon_passwords.txt
+*.password
+*.passwords

@@ -1,0 +1,46 @@
+---
+description: Autonomous job hunting, resume tailoring, and multi-company auto-apply rules and MCP integration
+globs: **/*
+---
+
+# Autonomous Job Finder & Applier Platform Rules
+
+## Core System Architecture
+This repository provides an end-to-end autonomous job hunting and auto-application platform:
+- **CLI Orchestrator:** `cli.py`
+- **MCP Server:** `engine/mcp/agy_terminal_mcp.py`
+- **Database:** `data/jobs.db` (SQLite with WAL mode)
+- **Watcher Daemon:** `engine/submission_watcher.py` (running under launchd as `com.adarsh.ai_auto_applier`)
+
+## Non-Negotiable Operational Principles
+1. **Dynamic Candidate Credentials:** Never hardcode personal credentials or contact details. All data is loaded dynamically from `.env` via `engine.config`.
+2. **Circuit Breaker:** `assert_real_candidate_profile()` must pass before applying. Dummy placeholder data triggers immediate abort.
+3. **Strict 1-Page Resume Layout:** All tailored XeTeX resumes must compile to exactly 1 page with no whitespace gaps at the bottom and no page-2 spillover.
+4. **Two-Tier Policy:** Remote contracts auto-submit (`AUTO_SUBMIT`); India FTE roles stage 100% pre-filled for 1-click candidate review (`STAGE_AND_VALIDATE`).
+5. **No CAPTCHA Bypassing:** When CAPTCHAs or Cloudflare gates appear, leave the form staged in ego-browser for user manual completion.
+
+## Ego-Browser Profiles
+- **Profile 1 ("Main Account"):** ChatGPT (`chatgpt.com`), Mercor, Microsoft, Stripe, Personal Gmail, Ashby.
+- **Profile 2 ("College Profile"):** LinkedIn (`linkedin.com`), College Gmail, academic portals.
+- **Default ("Daily Workload"):** High-volume ATS scrapers (Greenhouse, Lever) and public career portals.
+
+## Model Context Protocol (MCP) Tools
+The MCP server provides 13 tools over standard JSON-RPC 2.0 stdio:
+- `list_jobs`: Query SQLite jobs with status and priority filters.
+- `get_job_details`: Retrieve full job descriptions and metadata.
+- `spawn_agy_worker`: Launch autonomous subagent CLI sessions with conversation resumption.
+- `consult_chatgpt`: Query authenticated ChatGPT in Profile 1 for strategic insights.
+- `generate_application_pitch`: Generate metric-grounded 3-sentence pitches.
+- `apply_to_job`: Execute automated ATS form-filling and resume attachment.
+- `tailor_resume_claude`: Synthesize tailored 1-page LaTeX resumes via Claude Sonnet 3.5.
+- `switch_browser_account`: Open services in assigned profiles.
+- `check_inbox_emails`: Inspect recent Gmail emails in personal or college inboxes.
+- `record_apply_procedure`: Memorize ATS platform specifics and questions.
+- `track_agent_dispatch`: Record conversation ID and dispatch history per company.
+- `get_company_dispatches`: Query past conversation threads for target companies.
+- `get_daemon_status`: Inspect 24/7 background launchd daemon health.
+
+## Delegation Workflow
+1. Lead agent queries `list_jobs` and inspects `get_company_dispatches`.
+2. Worker agent handles resume tailoring (`tailor_resume_claude` or archetype compilation).
+3. Worker stages application (`apply_to_job`) and records dispatch (`track_agent_dispatch`).

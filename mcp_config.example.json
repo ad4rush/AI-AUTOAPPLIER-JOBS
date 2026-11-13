@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "job-applier-terminal": {
+      "command": "python3",
+      "args": [
+        "engine/mcp/agy_terminal_mcp.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "JOB_APPLIER_ROOT": "."
+      }
+    }
+  }
+}

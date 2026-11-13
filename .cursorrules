@@ -1,0 +1,119 @@
+# ==============================================================================
+# CURSOR & WINDSURF RULES: AUTONOMOUS JOB FINDER, TAILORER & APPLIER PLATFORM
+# ==============================================================================
+
+# 1. PROJECT OVERVIEW & ARCHITECTURE
+# ------------------------------------------------------------------------------
+# This workspace hosts an autonomous, multi-tier AI job hunting and application platform.
+# It continuously discovers software/AI jobs, evaluates stack match (JEV), tailors
+# crisp 1-page XeTeX/LaTeX resumes via Claude Sonnet 3.5, and stages or auto-applies
+# on Ashby, Greenhouse, Lever, and custom enterprise portals using ego-browser.
+#
+# Primary Entrypoints:
+# - Master CLI: cli.py
+# - MCP Server: engine/mcp/agy_terminal_mcp.py (13 JSON-RPC tools)
+# - Database: data/jobs.db (SQLite with WAL mode)
+# - Daemon: launchd service com.adarsh.ai_auto_applier (PID tracked in launchctl)
+# ==============================================================================
+
+# 2. NON-NEGOTIABLE OPERATIONAL SAFETY RULES
+# ------------------------------------------------------------------------------
+# 1. ZERO CREDENTIAL HARDCODING:
+#    - All candidate information (names, emails, phone numbers, locations, CTC, links)
+#      MUST load dynamically from .env via engine.config.
+#    - NEVER hardcode personal credentials or private tokens into code, templates, or commits.
+#    - .env is strictly gitignored and must never be tracked.
+#
+# 2. ZERO-PLACEHOLDER SAFETY CIRCUIT BREAKER:
+#    - Before staging or applying, engine.config.assert_real_candidate_profile() runs.
+#    - If placeholder values (e.g. "Candidate Name", "candidate@example.com") are detected,
+#      execution aborts immediately. Applications are NEVER submitted with dummy data.
+#
+# 3. STRICT 1-PAGE XETEX COMPILATION RULE:
+#    - Every tailored resume must compile strictly to EXACTLY 1 page.
+#    - Verified programmatically via macOS PDFKit (engine.claude_tailor.get_pdf_page_count).
+#    - ZERO whitespace gaps at the bottom; ZERO spillover onto page 2.
+#
+# 4. TWO-TIER SUBMISSION POLICY:
+#    - Remote Contract roles (Himalayas, Mercor, Turing, Alignerr): AUTO_SUBMIT.
+#    - Full-Time India roles (Tier-1 Tech, Enterprises): STAGE_AND_VALIDATE.
+#      Fill 100% of fields in ego-browser, attach the tailored PDF, and leave the
+#      final submit button enabled for user 1-click review.
+#
+# 5. NO ANTI-BOT OR CAPTCHA BYPASSING:
+#    - Never attempt to defeat, bypass, or click through CAPTCHAs, Cloudflare Turnstile,
+#      or proof-of-work gates. Leave staged in ego-browser for user manual completion.
+# ==============================================================================
+
+# 3. EGO-BROWSER PROFILE JARGON MATRIX
+# ------------------------------------------------------------------------------
+# Ego-browser isolates browsing profiles to eliminate authentication popups:
+#
+# | Profile | Name / Jargon | Purpose & Bound Portals |
+# |---|---|---|
+# | Profile 1 | "Main Account" / "Personal" | ChatGPT (chatgpt.com), Mercor, Ashby, Microsoft, Stripe, Personal Gmail |
+# | Profile 2 | "College Profile" | LinkedIn (jobs & InMail), College Gmail, Overleaf (pdfLaTeX), Academic/Research portals |
+# | Default   | "Daily Workload" | High-volume ATS scrapers (Greenhouse, Lever), non-authenticated career boards |
+#
+# CLI Commands:
+# - python3 cli.py switch-account --service <chatgpt|mercor|linkedin|personal_gmail|college_gmail>
+# - python3 cli.py check-emails --profile <personal|college> --limit 5
+# ==============================================================================
+
+# 4. MODEL CONTEXT PROTOCOL (MCP) RULES
+# ------------------------------------------------------------------------------
+# The MCP server is in engine/mcp/agy_terminal_mcp.py and speaks JSON-RPC 2.0.
+#
+# Framing Protocol:
+# - Dual-mode framing: handles both standard HTTP/LSP Content-Length headers and NDJSON.
+# - sys.stdout is STRICTLY RESERVED for JSON-RPC messages.
+# - All diagnostic logging, warnings, and error traces MUST write to sys.stderr.
+#
+# Available MCP Tools:
+# 1.  list_jobs(status, priority, limit)
+# 2.  get_job_details(job_id)
+# 3.  spawn_agy_worker(task_prompt, working_dir, conversation_id, effort, timeout_sec)
+# 4.  consult_chatgpt(prompt, timeout_sec)
+# 5.  generate_application_pitch(company, title, jd)
+# 6.  apply_to_job(url, company, submit, resume_path)
+# 7.  tailor_resume_claude(job_id, company, title)
+# 8.  switch_browser_account(service, url)
+# 9.  check_inbox_emails(profile, limit)
+# 10. record_apply_procedure(company, domain, ats_platform, submission_policy, notes)
+# 11. track_agent_dispatch(company, conversation_id, agent_type, job_id, role_title, status, notes)
+# 12. get_company_dispatches(company)
+# 13. get_daemon_status()
+# ==============================================================================
+
+# 5. MULTI-AGENT DELEGATION PATTERN
+# ------------------------------------------------------------------------------
+# When acting as an autonomous agent in this repository:
+#
+# Step 1 (Research & Triage):
+# - Query jobs using list_jobs(status="EVALUATED", priority="CRITICAL_PRIORITY").
+# - Check prior threads for target company via get_company_dispatches(company).
+#
+# Step 2 (Resume Strategy):
+# - If Tier-1 FTE role or high-suitability remote role: invoke tailor_resume_claude.
+# - Otherwise: use select_specialization_resume() to compile the dedicated archetype.
+#
+# Step 3 (Application & Staging):
+# - Delegate or run apply_to_job(url=..., company=..., submit=False).
+# - Validate that form fields and file attachment succeeded in ego-browser.
+#
+# Step 4 (Dispatch Memory):
+# - Record the outcome using track_agent_dispatch() so subsequent roles can resume
+#   the existing company conversation.
+# ==============================================================================
+
+# 6. MASTER RESUMES & ARCHETYPES
+# ------------------------------------------------------------------------------
+# Four specialization archetypes are maintained in master_resumes/:
+# 1. RESUME_1_AI_ENGINEER.tex         -> AI / GenAI / LLM / Agent Systems
+# 2. RESUME_2_DATA_ENGINEER.tex       -> Data Platform / Spark / Glue / Kafka Lakehouse
+# 3. RESUME_3_SWE_BACKEND.tex         -> Backend / Distributed Systems / Go / FastAPI
+# 4. RESUME_4_GENERAL_ENGINEERING.tex  -> General SWE / Algorithms / Full-Stack
+#
+# Compile offline using Tectonic:
+# - python3 cli.py compile-latex --tex <path_to_tex>
+# ==============================================================================
