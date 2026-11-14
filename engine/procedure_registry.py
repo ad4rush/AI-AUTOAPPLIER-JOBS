@@ -744,7 +744,8 @@ def dispatch_application(
     url: str,
     resume_path: Optional[str] = None,
     submit: bool = False,
-    task_space: Optional[str] = None
+    task_space: Optional[str] = None,
+    job_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     The unified execution router. Looks up the memorized apply procedure for the

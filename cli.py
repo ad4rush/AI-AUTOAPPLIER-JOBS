@@ -313,7 +313,10 @@ def cmd_apply_linkedin(args):
         new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
         record_apply_event(comp, res.get("url") or args.url, new_status, res.get("submitted", False), args.resume or "", job_id=db_job_id or "")
         if db_job_id:
-            update_job_status(db_job_id, new_status, {"notes": f"[LinkedIn Easy Apply] {'Submitted' if res.get('submitted') else 'Staged in ego-browser'}. TaskSpace: {res.get('task_space')}"}, refresh_summary=True)
+            up_details = {"notes": f"[LinkedIn Easy Apply] {'Submitted' if res.get('submitted') else 'Staged in ego-browser'}. TaskSpace: {res.get('task_space')}"}
+            if res.get("submitted"):
+                up_details["applied_at"] = datetime.now().isoformat()
+            update_job_status(db_job_id, new_status, up_details, refresh_summary=True)
         if res.get("submitted"):
             print(f"\n[+] LinkedIn Easy Apply application for {comp} successfully SUBMITTED!")
         else:
@@ -322,6 +325,10 @@ def cmd_apply_linkedin(args):
             print(f"    👉 Screenshot: {res.get('screenshot')}")
     else:
         print(f"\n[!] LinkedIn application staging encountered issues: {res.get('error')}")
+
+def cmd_apply_all_linkedin(args):
+    from engine.batch_linkedin_applier import run_batch_linkedin_apply
+    run_batch_linkedin_apply(limit=args.limit, delay_sec=args.delay)
 
 def cmd_watch_submissions(args):
     if args.once:
@@ -457,7 +464,8 @@ def cmd_apply_all(args):
             url=url,
             resume_path=pdf_path,
             submit=should_submit,
-            task_space=task_space
+            task_space=task_space,
+            job_id=job_id
         )
 
         if res.get("success"):
@@ -1254,6 +1262,10 @@ def main():
     apply_li_p.add_argument("--task-space", help="Optional ego-browser task space name")
     apply_li_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
 
+    batch_li_p = subparsers.add_parser("apply-all-linkedin", help="Batch apply to all unapplied LinkedIn Easy Apply jobs with direct submit")
+    batch_li_p.add_argument("--limit", type=int, default=30, help="Maximum jobs to process (default: 30)")
+    batch_li_p.add_argument("--delay", type=int, default=4, help="Delay in seconds between applications (default: 4)")
+
     subparsers.add_parser("flush", help="Execute hardware, memory, and SQLite maintenance flush")
 
     daemon_p = subparsers.add_parser("daemon", help="Run 24/7 background autonomous monitoring, submission watcher & flush daemon")
@@ -1432,6 +1444,8 @@ def main():
         cmd_apply_smartrecruiters(args)
     elif args.command == "apply-linkedin":
         cmd_apply_linkedin(args)
+    elif args.command == "apply-all-linkedin":
+        cmd_apply_all_linkedin(args)
     elif args.command == "apply-all":
         cmd_apply_all(args)
     elif args.command == "pipeline":

@@ -189,17 +189,36 @@ const pageMeta = await page.evaluate(() => {{
     (b.innerText && b.innerText.includes("Apply on company website")) ||
     (b.href && b.href.includes("externalApply"))
   );
+  const isAlreadyApplied = Array.from(document.querySelectorAll("button, span, div.artdeco-inline-feedback, p")).some(el => {{
+    const t = (el.innerText || "").trim().toLowerCase();
+    return t === "applied" || t.startsWith("applied on") || t.startsWith("applied ");
+  }});
   return {{
     title,
     company: comp,
     hasEasyApply: !!easyApplyBtn,
-    hasExternalApply: !!externalApplyBtn
+    hasExternalApply: !!externalApplyBtn,
+    isAlreadyApplied
   }};
 }});
 
 console.log("[LinkedIn-Apply] Page metadata:", JSON.stringify(pageMeta));
 
 if (!pageMeta.hasEasyApply) {{
+  if (pageMeta.isAlreadyApplied) {{
+    console.log("[LinkedIn-Apply] Job has already been applied to on LinkedIn.");
+    await fs.writeFile("{output_json_path}", JSON.stringify({{
+      success: true,
+      isEasyApply: true,
+      alreadyApplied: true,
+      submitted: true,
+      company: pageMeta.company || "{comp}",
+      title: pageMeta.title
+    }}));
+    try {{ await task.finish({{ keep: [] }}); }} catch(e) {{}}
+    process.exit(0);
+  }}
+
   console.log("[LinkedIn-Apply] Job does not have an Easy Apply button.");
   await fs.writeFile("{output_json_path}", JSON.stringify({{
     success: false,
@@ -209,6 +228,7 @@ if (!pageMeta.hasEasyApply) {{
     company: pageMeta.company || "{comp}",
     title: pageMeta.title
   }}));
+  try {{ await task.finish({{ keep: [] }}); }} catch(e) {{}}
   process.exit(0);
 }}
 
@@ -417,22 +437,30 @@ while (stepNumber < 15) {{
         if (qText.includes("country code") || sel.id.includes("countryCode")) {{
           val = "in";
         }} else if (qText.includes("current salary") || qText.includes("current ctc")) {{
-          const opt = Array.from(sel.options).find(o => o.value === "20" || o.text === "20");
-          val = opt ? opt.value : "20";
+          const opt = Array.from(sel.options).find(o => 
+            o.value === "20" || o.text === "20" || o.text.includes("18 - 21") || o.text.includes("15 - 18") || o.text.includes("20")
+          );
+          val = opt ? opt.value : (sel.options[1]?.value || "");
         }} else if (qText.includes("expected salary") || qText.includes("expected ctc")) {{
-          const opt = Array.from(sel.options).find(o => o.value === "28" || o.text === "28");
-          val = opt ? opt.value : "28";
+          const opt = Array.from(sel.options).find(o => 
+            o.value === "28" || o.text === "28" || o.text.includes("27 - 30") || o.text.includes("24 - 27") || o.text.includes("28")
+          );
+          val = opt ? opt.value : (sel.options[1]?.value || "");
+        }} else if (qText.includes("comfortable working from office") || qText.includes("work from office") || qText.includes("hybrid") || qText.includes("on-site")) {{
+          const opt = Array.from(sel.options).find(o => o.text.toLowerCase().trim() === "yes" || o.value.toLowerCase().trim() === "yes");
+          val = opt ? opt.value : (sel.options[1]?.value || "");
         }} else if (qText.includes("additional months") || qText.includes("month")) {{
           const opt = Array.from(sel.options).find(o => o.value === "0" || o.text.includes("0"));
           val = opt ? opt.value : (sel.options[1]?.value || "");
         }} else if (qText.includes("experience") || qText.includes("year")) {{
-          const opt = Array.from(sel.options).find(o => o.value === "2" || o.text.includes("2"));
+          const opt = Array.from(sel.options).find(o => o.value === "2" || o.text.includes("2") || o.value === "1" || o.text.includes("1"));
           val = opt ? opt.value : (sel.options[1]?.value || "");
         }} else if (qText.includes("notice")) {{
           const opt = Array.from(sel.options).find(o => o.text.toLowerCase().includes("immediate") || o.text.includes("15") || o.text.includes("30"));
           val = opt ? opt.value : (sel.options[1]?.value || "");
         }} else {{
-          const valid = Array.from(sel.options).find(o => o.value && !o.text.toLowerCase().includes("select"));
+          const yesOpt = Array.from(sel.options).find(o => o.text.toLowerCase().trim() === "yes" || o.value.toLowerCase().trim() === "yes");
+          const valid = yesOpt || Array.from(sel.options).find(o => o.value && !o.text.toLowerCase().includes("select"));
           val = valid ? valid.value : "";
         }}
 
@@ -565,16 +593,28 @@ if (isReviewScreen) {{
 
     const confirmationInfo = await page.evaluate(() => {{
       const d = document.querySelector("dialog");
-      const text = d ? d.innerText : document.body.innerText;
+      const text = (d ? d.innerText : document.body.innerText).toLowerCase();
+      const isSent = text.includes("application was sent") ||
+                     text.includes("application sent") ||
+                     text.includes("applied") ||
+                     text.includes("application submitted") ||
+                     text.includes("keep track of your application");
       return {{
-        isConfirmed: text.includes("Application sent") || text.includes("Your application was sent") || text.includes("applied"),
-        snippet: text.slice(0, 300).replace(/\\n+/g, " | ")
+        isConfirmed: isSent,
+        snippet: (d ? d.innerText : document.body.innerText).slice(0, 300).replace(/\\n+/g, " | ")
       }};
     }});
 
     submittedSuccessfully = confirmationInfo.isConfirmed;
     confirmationText = confirmationInfo.snippet;
     console.log("[LinkedIn-Apply] Application submission confirmed:", submittedSuccessfully);
+    if (submittedSuccessfully) {{
+      try {{
+        await task.finish({{ keep: [] }});
+      }} catch(e) {{
+        console.log("[LinkedIn-Apply] Task finish note:", e.message);
+      }}
+    }}
   }} else {{
     console.log("[LinkedIn-Apply] Safe Mode: Staging on Review & Submit screen with zero errors.");
     await page.screenshot({{ path: "{staged_screenshot_path}", fullPage: true }});
@@ -684,12 +724,15 @@ await fs.writeFile("{output_json_path}", JSON.stringify({{
         # Update database status if job_id was linked
         if job_id_db:
             new_status = "APPLIED" if is_submitted else ("STAGED_FOR_REVIEW" if is_success else "FAILED")
+            details = {
+                "notes": f"[LinkedIn Easy Apply] {'Submitted directly' if is_submitted else f'Staged in ego-browser {profile_id}'}. TaskSpace: {tspace}. Resume: {resume_abs}"
+            }
+            if is_submitted:
+                details["applied_at"] = datetime.now().isoformat()
             update_job_status(
                 job_id=job_id_db,
                 status=new_status,
-                details={
-                    "notes": f"[LinkedIn Easy Apply] {'Submitted directly' if is_submitted else f'Staged in ego-browser {profile_id}'}. TaskSpace: {tspace}. Resume: {resume_abs}"
-                },
+                details=details,
                 refresh_summary=True
             )
 
