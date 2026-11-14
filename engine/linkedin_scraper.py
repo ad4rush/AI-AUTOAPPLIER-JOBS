@@ -45,21 +45,43 @@ SEARCH_TARGETS = [
 ]
 
 
+def scrape_linkedin_jobs(
+    keywords: str = "AI Engineer",
+    location: str = "India",
+    max_jobs: int = 15,
+    easy_apply_only: bool = False,
+    profile_id: str = LINKEDIN_DEFAULT_PROFILE,
+    task_space_name: str = "linkedin_scraper"
+) -> Dict[str, Any]:
+    """Convenience wrapper for scrape_linkedin_search_query."""
+    return scrape_linkedin_search_query(
+        keywords=keywords,
+        location=location,
+        max_jobs_per_query=max_jobs,
+        easy_apply_only=easy_apply_only,
+        profile_id=profile_id,
+        task_space_name=task_space_name
+    )
+
+
 def scrape_linkedin_search_query(
     keywords: str = "AI Engineer",
     location: str = "India",
     max_jobs_per_query: int = 15,
+    easy_apply_only: bool = False,
     profile_id: str = LINKEDIN_DEFAULT_PROFILE,
     task_space_name: str = "linkedin_scraper"
 ) -> Dict[str, Any]:
     """
     Executes a deterministic targeted search query on LinkedIn.
     Uses p1 for search navigation and p2 for external ATS URL resolution.
+    Supports both standard ATS search and Easy Apply search (f_AL=true).
     """
     output_path = f"/tmp/linkedin_query_{int(time.time() * 1000)}.json"
     enc_keywords = urllib.parse.quote(keywords)
     enc_location = urllib.parse.quote(location)
-    search_url = f"https://www.linkedin.com/jobs/search/?keywords={enc_keywords}&location={enc_location}&sortBy=DD"
+    easy_apply_param = "&f_AL=true" if easy_apply_only else ""
+    search_url = f"https://www.linkedin.com/jobs/search/?keywords={enc_keywords}&location={enc_location}{easy_apply_param}&sortBy=DD"
 
     node_script = f"""
 const fs = await import("node:fs/promises");
@@ -110,14 +132,20 @@ const cardMetadata = await p1.evaluate((maxLimit) => {{
   const results = [];
   const seenJobIds = new Set();
 
-  // Primary: occludable items and card containers
+  // Modern 2026 componentkey cards & legacy occludable items
   const items = Array.from(document.querySelectorAll(
-    "li[data-occludable-job-id], .job-card-container, [data-job-id], li.jobs-search-results__list-item"
+    "[componentkey^='job-card-component-ref-'], div[data-testid='lazy-column'] div[role='button'], li[data-occludable-job-id], .job-card-container, [data-job-id], li.jobs-search-results__list-item"
   ));
 
   for (const item of items) {{
     let jobId = item.getAttribute("data-occludable-job-id") || item.getAttribute("data-job-id");
     
+    // Check componentkey attribute
+    const compKey = item.getAttribute("componentkey");
+    if (!jobId && compKey && compKey.includes("job-card-component-ref-")) {{
+      jobId = compKey.replace("job-card-component-ref-", "").trim();
+    }}
+
     // Fallback: extract jobId from link
     const titleLink = item.querySelector("a[href*='/jobs/view/'], a.job-card-list__title--link, a.job-card-container__link");
     if (!jobId && titleLink) {{
@@ -128,24 +156,35 @@ const cardMetadata = await p1.evaluate((maxLimit) => {{
     if (!jobId || seenJobIds.has(jobId)) continue;
     seenJobIds.add(jobId);
 
+    const isEasyApply = item.innerText.includes("Easy Apply");
+
     const titleEl = item.querySelector(".job-card-list__title, strong, a.job-card-container__link");
-    const rawTitle = titleEl ? titleEl.innerText.trim() : "";
-    const cleanTitle = rawTitle.replace(/^(Selected,\\s*|Verified job|\\s*\\(Verified job\\))/gi, "").replace(/[\\r\\n]+/g, " ").trim();
+    const rawTitle = titleEl ? titleEl.innerText.trim() : (item.innerText.split("\\n")[0] || "");
+    const cleanTitle = rawTitle.replace(/^(Selected,\\s*|Verified job|\\s*\\(Verified job\\))/gi, "").replace(/\\(Verified job\\)/gi, "").replace(/[\\r\\n]+/g, " ").trim();
     if (!cleanTitle || cleanTitle.length < 3) continue;
 
     const companyEl = item.querySelector(".job-card-container__primary-description, .artdeco-entity-lockup__subtitle, a[href*='/company/']");
-    const company = companyEl ? companyEl.innerText.trim() : "Tech Company";
+    let company = companyEl ? companyEl.innerText.trim() : "";
+    if (!company) {{
+      const lines = item.innerText.split("\\n").map(s => s.trim()).filter(Boolean);
+      company = lines[2] || lines[1] || "Tech Company";
+    }}
 
     const locEl = item.querySelector(".job-card-container__metadata-item, .artdeco-entity-lockup__caption");
-    const location = locEl ? locEl.innerText.trim() : "India";
+    let location = locEl ? locEl.innerText.trim() : "";
+    if (!location) {{
+      const lines = item.innerText.split("\\n").map(s => s.trim()).filter(Boolean);
+      location = lines[3] || "India";
+    }}
 
     results.push({{
       jobId,
       title: cleanTitle,
       company: company,
       location: location,
+      isEasyApply: isEasyApply,
       url: `https://www.linkedin.com/jobs/view/${{jobId}}/`,
-      snippet: `${{company}} | ${{cleanTitle}} | ${{location}}`
+      snippet: `${{company}} | ${{cleanTitle}} | ${{location}}${{isEasyApply ? " | Easy Apply" : ""}}`
     }});
 
     if (results.length >= maxLimit) break;
@@ -167,6 +206,7 @@ const cardMetadata = await p1.evaluate((maxLimit) => {{
           title: t,
           company: "Tech Enterprise",
           location: "India",
+          isEasyApply: a.closest("li, div")?.innerText?.includes("Easy Apply") || false,
           url: `https://www.linkedin.com/jobs/view/${{jId}}/`,
           snippet: t
         }});
@@ -180,7 +220,7 @@ const cardMetadata = await p1.evaluate((maxLimit) => {{
 
 console.log("[LinkedIn-Scraper] Discovered " + cardMetadata.length + " deterministic candidates for '{keywords}'.");
 
-// 2. Resolve external ATS URLs using tab p2 without disturbing p1
+// 2. Resolve external ATS URLs using tab p2 (fast-path skip if Easy Apply)
 let p2;
 try {{
   p2 = task.page("p2");
@@ -192,6 +232,14 @@ const enriched = [];
 for (let item of cardMetadata) {{
   try {{
     if (!item.jobId) {{
+      enriched.push(item);
+      continue;
+    }}
+
+    // Fast-path for Easy Apply jobs: no external redirect needed!
+    if (item.isEasyApply) {{
+      console.log(`[LinkedIn-Scraper] [Easy Apply] Fast-tracking ${{item.company}} - ${{item.title}} (ID: ${{item.jobId}})`);
+      item.externalUrl = item.url;
       enriched.push(item);
       continue;
     }}
@@ -280,6 +328,10 @@ def ingest_scraped_linkedin_jobs(scraped_jobs: List[Dict[str, Any]]) -> List[Dic
         status = "EVALUATED" if ev["priority_level"] != "SKIP" else "SKIPPED"
 
         job_id = f"li_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canon_hash[:8]}"
+        is_ea = bool(j.get("isEasyApply"))
+        source = "linkedin_easy_apply" if is_ea else "linkedin_ats"
+        extra_note = " [Easy Apply Enabled]" if is_ea else ""
+
         record = {
             "job_id": job_id,
             "canonical_hash": canon_hash,
@@ -287,14 +339,14 @@ def ingest_scraped_linkedin_jobs(scraped_jobs: List[Dict[str, Any]]) -> List[Dic
             "title": title,
             "location": location,
             "url": url,
-            "source": "linkedin_ats",
+            "source": source,
             "company_tier": ev["company_tier"],
             "match_score": ev["match_score"],
             "fit_verdict": ev["fit_verdict"],
             "priority_level": ev["priority_level"],
             "status": status,
             "raw_jd": raw_jd,
-            "notes": f"[{ev['experience_status']}] Matched: {', '.join(ev['matched_skills'][:5])}"
+            "notes": f"[{ev['experience_status']}]{extra_note} Matched: {', '.join(ev['matched_skills'][:5])}"
         }
 
         raw_path = save_raw_job("linkedin", job_id, record)
@@ -312,10 +364,11 @@ def ingest_scraped_linkedin_jobs(scraped_jobs: List[Dict[str, Any]]) -> List[Dic
 def run_linkedin_pipeline(
     profile_id: str = LINKEDIN_DEFAULT_PROFILE,
     max_queries: int = 4,
-    jobs_per_query: int = 10
+    jobs_per_query: int = 10,
+    easy_apply_only: bool = False
 ) -> Dict[str, Any]:
     """Runs full multi-query LinkedIn discovery and ingestion."""
-    print(f"\n[*] Executing Deterministic LinkedIn ATS Discovery Pipeline in {profile_id}...")
+    print(f"\n[*] Executing Deterministic LinkedIn ATS Discovery Pipeline in {profile_id} (Easy Apply Only: {easy_apply_only})...")
     total_ingested = 0
     all_ingested = []
 
@@ -328,6 +381,7 @@ def run_linkedin_pipeline(
             keywords=kw,
             location=loc,
             max_jobs_per_query=jobs_per_query,
+            easy_apply_only=easy_apply_only,
             profile_id=profile_id
         )
 
@@ -353,6 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--profile", default=LINKEDIN_DEFAULT_PROFILE, help="Profile ID (default: Profile 2)")
     parser.add_argument("--queries", type=int, default=2, help="Number of queries to run")
     parser.add_argument("--jobs-per-query", type=int, default=10, help="Max jobs per query")
+    parser.add_argument("--easy-apply-only", action="store_true", help="Filter strictly for LinkedIn Easy Apply openings")
     args = parser.parse_args()
 
-    run_linkedin_pipeline(profile_id=args.profile, max_queries=args.queries, jobs_per_query=args.jobs_per_query)
+    run_linkedin_pipeline(profile_id=args.profile, max_queries=args.queries, jobs_per_query=args.jobs_per_query, easy_apply_only=args.easy_apply_only)

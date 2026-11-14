@@ -206,7 +206,7 @@ def apply_to_manatal_job(
 
       const clEl = document.querySelector("textarea");
       if (clEl) {{
-        clEl.value = "I am an {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY} and student at {ANS_COLLEGE} ({CANDIDATE_HONORS}). Experienced in production distributed systems, LLM agents, and high-scale data platforms. Eager to contribute directly to engineering impact.";
+        clEl.value = "I am an {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY} and B.Tech graduate from {ANS_COLLEGE} (Class of 2026, {CANDIDATE_HONORS}). Experienced in production distributed systems, LLM agents, and high-scale data platforms. Eager to contribute directly to engineering impact.";
       }}
 
       const chk = document.querySelector("input[type='checkbox']");

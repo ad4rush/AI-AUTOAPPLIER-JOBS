@@ -33,6 +33,7 @@ from engine.greenhouse_apply import apply_to_greenhouse_job
 from engine.lever_apply import apply_to_lever_job
 from engine.remote_apply import apply_to_remote_contract_job
 from engine.jazzhr_apply import apply_to_jazzhr_job
+from engine.bamboohr_apply import apply_to_bamboohr_job
 from engine.submission_watcher import check_and_process_submissions, run_submission_watcher_loop
 from engine.chatgpt_consultant import consult_ai_which_to_apply
 from engine.portal_generator import generate_apply_script_for_company, dispatch_agy_for_custom_portal
@@ -244,6 +245,83 @@ def cmd_apply_jazzhr(args):
             print("    👉 Action: Solve human reCAPTCHA in ego-browser and click Submit Application.")
     else:
         print("\n[!] Application staging encountered issues. Check logs above.")
+
+def cmd_apply_bamboohr(args):
+    assert_real_candidate_profile()
+    task_space = getattr(args, "task_space", None) or "bamboohr_auto_apply"
+    res = apply_to_bamboohr_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
+    if res.get("success"):
+        comp = getattr(args, "company", None) or res.get("company") or "BambooHR Supported Company"
+        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+        record_apply_event(comp, args.url, new_status, res.get("submitted", False), args.resume or "")
+        if res.get("submitted"):
+            print(f"\n[+] BambooHR application for {comp} successfully SUBMITTED!")
+        else:
+            print(f"\n[+] BambooHR apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
+            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+            print("    👉 Action: Complete reCAPTCHA check in ego-browser and click Submit Application.")
+    else:
+        print("\n[!] Application staging encountered issues. Check logs above.")
+
+def cmd_apply_smartrecruiters(args):
+    assert_real_candidate_profile()
+    from engine.smartrecruiters_apply import apply_to_smartrecruiters_job
+    task_space = getattr(args, "task_space", None) or "smartrecruiters_auto_apply"
+    res = apply_to_smartrecruiters_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", "Target Company"), submit=args.submit, task_space_name=task_space)
+    if res.get("success"):
+        comp = getattr(args, "company", None) or res.get("company") or "SmartRecruiters Supported Company"
+        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+        record_apply_event(comp, args.url, new_status, res.get("submitted", False), args.resume or "")
+        if res.get("submitted"):
+            print(f"\n[+] SmartRecruiters application for {comp} successfully SUBMITTED!")
+        else:
+            print(f"\n[+] SmartRecruiters apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
+            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+    else:
+        print("\n[!] Application staging encountered issues. Check logs above.")
+
+def cmd_apply_linkedin(args):
+    assert_real_candidate_profile()
+    from engine.linkedin_apply import apply_to_linkedin_job
+    from engine.db import get_db_connection, update_job_status
+    task_space = getattr(args, "task_space", None)
+    profile_id = getattr(args, "profile", None) or "Profile 1"
+
+    # Match database job_id if already ingested
+    conn = get_db_connection()
+    c = conn.cursor()
+    m_num = re.search(r"(\d{8,12})", args.url)
+    num_id = m_num.group(1) if m_num else args.url
+    c.execute("SELECT job_id, company, title FROM jobs WHERE url LIKE ? OR url LIKE ? OR job_id LIKE ?", (f"%{args.url}%", f"%{num_id}%", f"%{num_id}%"))
+    row = c.fetchone()
+    conn.close()
+
+    db_job_id = row["job_id"] if row else None
+    comp_name = getattr(args, "company", None) or (row["company"] if row else None)
+
+    res = apply_to_linkedin_job(
+        url_or_id=args.url,
+        resume_path=args.resume,
+        company_name=comp_name,
+        submit=args.submit,
+        profile_id=profile_id,
+        task_space_name=task_space,
+        job_id_db=db_job_id
+    )
+    if res.get("success"):
+        comp = res.get("company") or comp_name or "LinkedIn Job"
+        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+        record_apply_event(comp, res.get("url") or args.url, new_status, res.get("submitted", False), args.resume or "", job_id=db_job_id or "")
+        if db_job_id:
+            update_job_status(db_job_id, new_status, {"notes": f"[LinkedIn Easy Apply] {'Submitted' if res.get('submitted') else 'Staged in ego-browser'}. TaskSpace: {res.get('task_space')}"}, refresh_summary=True)
+        if res.get("submitted"):
+            print(f"\n[+] LinkedIn Easy Apply application for {comp} successfully SUBMITTED!")
+        else:
+            print(f"\n[+] LinkedIn Easy Apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
+            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{res.get('task_space')}' ({profile_id})")
+            print(f"    👉 Screenshot: {res.get('screenshot')}")
+    else:
+        print(f"\n[!] LinkedIn application staging encountered issues: {res.get('error')}")
 
 def cmd_watch_submissions(args):
     if args.once:
@@ -918,13 +996,16 @@ def cmd_pipeline(args):
 
 def cmd_find_linkedin(args):
     from engine.linkedin_scraper import scrape_linkedin_jobs, ingest_scraped_linkedin_jobs, run_linkedin_pipeline
+    is_ea = getattr(args, "easy_apply", False)
     if args.pipeline:
-        print("[*] Running multi-query LinkedIn job discovery pipeline...")
-        res = run_linkedin_pipeline(profile_id=args.profile)
+        print(f"[*] Running multi-query LinkedIn job discovery pipeline (Easy Apply Only: {is_ea})...")
+        res = run_linkedin_pipeline(profile_id=args.profile, easy_apply_only=is_ea)
         print(f"[+] LinkedIn pipeline finished: {res.get('total_ingested', 0)} new jobs ingested.")
     else:
-        print(f"[*] Scraping LinkedIn (profile: {args.profile})...")
-        res = scrape_linkedin_jobs(max_jobs=15, profile_id=args.profile)
+        kw = getattr(args, "keywords", "Software Engineer")
+        loc = "Remote" if getattr(args, "remote", False) else getattr(args, "location", "India")
+        print(f"[*] Scraping LinkedIn: '{kw}' in '{loc}' (Easy Apply: {is_ea}, profile: {args.profile})...")
+        res = scrape_linkedin_jobs(keywords=kw, location=loc, max_jobs=15, easy_apply_only=is_ea, profile_id=args.profile)
         if res.get("status") == "SUCCESS":
             jobs = res.get("jobs", [])
             ingested = ingest_scraped_linkedin_jobs(jobs)
@@ -1151,6 +1232,28 @@ def main():
     jazzhr_p.add_argument("--task-space", help="Optional ego-browser task space name (default: jazzhr_auto_apply)")
     jazzhr_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
 
+    bamboohr_p = subparsers.add_parser("apply-bamboohr", help="Auto-apply to BambooHR jobs (Lukka, etc.)")
+    bamboohr_p.add_argument("--url", required=True, help="BambooHR Job URL")
+    bamboohr_p.add_argument("--company", help="Optional company name")
+    bamboohr_p.add_argument("--resume", help="Optional tailored PDF resume path")
+    bamboohr_p.add_argument("--task-space", help="Optional ego-browser task space name (default: bamboohr_auto_apply)")
+    bamboohr_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
+
+    sr_p = subparsers.add_parser("apply-smartrecruiters", help="Auto-apply to SmartRecruiters OneClick jobs (Coditation, Swiggy, etc.)")
+    sr_p.add_argument("--url", required=True, help="SmartRecruiters Job URL")
+    sr_p.add_argument("--company", help="Optional company name")
+    sr_p.add_argument("--resume", help="Optional tailored PDF resume path")
+    sr_p.add_argument("--task-space", help="Optional ego-browser task space name")
+    sr_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
+
+    apply_li_p = subparsers.add_parser("apply-linkedin", help="Auto-apply to LinkedIn Easy Apply jobs via ego-browser")
+    apply_li_p.add_argument("--url", required=True, help="LinkedIn Job URL or numeric Job ID")
+    apply_li_p.add_argument("--company", help="Optional company name")
+    apply_li_p.add_argument("--resume", help="Optional tailored PDF resume path")
+    apply_li_p.add_argument("--profile", default="Profile 1", help="Ego browser profile ID (default: Profile 1)")
+    apply_li_p.add_argument("--task-space", help="Optional ego-browser task space name")
+    apply_li_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
+
     subparsers.add_parser("flush", help="Execute hardware, memory, and SQLite maintenance flush")
 
     daemon_p = subparsers.add_parser("daemon", help="Run 24/7 background autonomous monitoring, submission watcher & flush daemon")
@@ -1175,6 +1278,7 @@ def main():
     li_p.add_argument("--remote", action="store_true", help="Search worldwide remote roles")
     li_p.add_argument("--profile", default="Profile 2", help="Ego-browser profile ID (default: Profile 2)")
     li_p.add_argument("--pipeline", action="store_true", help="Run multi-query full discovery pipeline")
+    li_p.add_argument("--easy-apply", action="store_true", help="Filter exclusively for Easy Apply openings")
 
     # Naukri Scraper Plugin
     naukri_p = subparsers.add_parser("find-naukri", help="Scrape jobs from Naukri.com via ego-browser")
@@ -1322,6 +1426,12 @@ def main():
         cmd_apply_remote(args)
     elif args.command == "apply-jazzhr":
         cmd_apply_jazzhr(args)
+    elif args.command == "apply-bamboohr":
+        cmd_apply_bamboohr(args)
+    elif args.command == "apply-smartrecruiters":
+        cmd_apply_smartrecruiters(args)
+    elif args.command == "apply-linkedin":
+        cmd_apply_linkedin(args)
     elif args.command == "apply-all":
         cmd_apply_all(args)
     elif args.command == "pipeline":

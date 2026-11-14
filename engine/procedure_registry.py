@@ -786,8 +786,14 @@ def dispatch_application(
             engine = "manatal_apply"
         elif "micro1.ai" in url_lower:
             engine = "micro1_apply"
+        elif "smartrecruiters.com" in url_lower:
+            engine = "smartrecruiters_apply"
         elif "applytojob.com" in url_lower or "jazzhr" in url_lower:
             engine = "jazzhr_apply"
+        elif "bamboohr.com" in url_lower:
+            engine = "bamboohr_apply"
+        elif "linkedin.com" in url_lower:
+            engine = "linkedin_apply"
         elif "amazon.jobs" in url_lower or "amazon" in (company or "").lower():
             engine = "amazon_apply"
         elif "mercor.com" in url_lower or "outlier.ai" in url_lower:
@@ -861,6 +867,18 @@ def dispatch_application(
         from engine.jazzhr_apply import apply_to_jazzhr_job
         tspace = task_space or "jazzhr_auto_apply"
         res = apply_to_jazzhr_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+    elif engine == "smartrecruiters_apply":
+        from engine.smartrecruiters_apply import apply_to_smartrecruiters_job
+        tspace = task_space or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:12]}"
+        res = apply_to_smartrecruiters_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+    elif engine == "bamboohr_apply":
+        from engine.bamboohr_apply import apply_to_bamboohr_job
+        tspace = task_space or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:12]}"
+        res = apply_to_bamboohr_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+    elif engine == "linkedin_apply":
+        from engine.linkedin_apply import apply_to_linkedin_job
+        tspace = task_space or f"apply_li_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:10]}"
+        res = apply_to_linkedin_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "askable_apply":
         from engine.askable_apply import apply_to_askable_job
         tspace = task_space or "apply_askable"
