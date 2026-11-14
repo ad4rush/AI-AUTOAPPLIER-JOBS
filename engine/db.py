@@ -2,6 +2,7 @@ import sqlite3
 import json
 import hashlib
 import time
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -270,20 +271,27 @@ def get_jobs_by_status(status: str) -> List[sqlite3.Row]:
     conn.close()
     return rows
 
-def get_pending_priority_jobs(limit: int = 30) -> List[sqlite3.Row]:
-    """Retrieves top-priority unapplied jobs waiting in EVALUATED status, prioritizing Big Tech, India FTE, and global roles."""
+def get_pending_priority_jobs(limit: int = 30, min_score: int = 60) -> List[sqlite3.Row]:
+    """Retrieves top unapplied jobs waiting in EVALUATED status, prioritizing Big Tech, India FTE, and global roles."""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("""
         SELECT * FROM jobs
         WHERE status = 'EVALUATED'
-          AND priority_level IN ('CRITICAL_PRIORITY', 'HIGH_PRIORITY')
-          AND match_score >= 70
-          AND LOWER(company) NOT IN ('openai')
+          AND priority_level IN ('CRITICAL_PRIORITY', 'HIGH_PRIORITY', 'NORMAL')
+          AND match_score >= ?
+          AND LOWER(company) NOT IN ('openai', 'google')
           AND NOT (LOWER(company) = 'mercor' AND (LOWER(title) LIKE '%grant%' OR LOWER(title) LIKE '%benchmark%'))
         ORDER BY 
+          CASE priority_level 
+            WHEN 'CRITICAL_PRIORITY' THEN 1 
+            WHEN 'HIGH_PRIORITY' THEN 2 
+            WHEN 'NORMAL' THEN 3
+            ELSE 4 
+          END ASC,
+          match_score DESC,
           CASE 
-            WHEN company_tier = 'TIER_1' OR LOWER(company) IN ('microsoft', 'google', 'apple', 'amazon', 'meta', 'stripe', 'oracle', 'salesforce', 'uber', 'atlassian', 'adobe', 'nvidia', 'netflix', 'linkedin', 'databricks', 'snowflake', 'palantir') THEN 1
+            WHEN company_tier = 'TIER_1' OR LOWER(company) IN ('microsoft', 'apple', 'amazon', 'meta', 'stripe', 'oracle', 'salesforce', 'uber', 'atlassian', 'adobe', 'nvidia', 'netflix', 'linkedin', 'databricks', 'snowflake', 'palantir', 'supabase') THEN 1
             ELSE 2
           END ASC,
           CASE 
@@ -295,11 +303,9 @@ def get_pending_priority_jobs(limit: int = 30) -> List[sqlite3.Row]:
           CASE
             WHEN LOWER(location) LIKE '%united states%' OR LOWER(location) LIKE '%san francisco%' OR LOWER(location) LIKE '%new york%' OR LOWER(location) LIKE '%canada%' OR LOWER(location) LIKE '%germany%' OR LOWER(location) LIKE '%tokyo%' OR LOWER(location) LIKE '%singapore%' THEN 2
             ELSE 1
-          END ASC,
-          CASE priority_level WHEN 'CRITICAL_PRIORITY' THEN 1 ELSE 2 END,
-          match_score DESC
+          END ASC
         LIMIT ?
-    """, (limit,))
+    """, (min_score, limit))
     rows = c.fetchall()
     conn.close()
     return rows

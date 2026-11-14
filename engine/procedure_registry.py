@@ -792,6 +792,8 @@ def dispatch_application(
             engine = "amazon_apply"
         elif "mercor.com" in url_lower or "weworkremotely.com" in url_lower or "remoteok.com" in url_lower:
             engine = "remote_apply"
+        elif "askable.com" in url_lower or "askable" in (company or "").lower():
+            engine = "askable_apply"
         else:
             engine = "intelligent_solver"
 
@@ -859,6 +861,10 @@ def dispatch_application(
         from engine.jazzhr_apply import apply_to_jazzhr_job
         tspace = task_space or "jazzhr_auto_apply"
         res = apply_to_jazzhr_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+    elif engine == "askable_apply":
+        from engine.askable_apply import apply_to_askable_job
+        tspace = task_space or "apply_askable"
+        res = apply_to_askable_job(url, resume_path=resume_path, submit=submit, task_space_name=tspace)
     elif engine.startswith("generated_"):
         safe_co = engine.replace("generated_", "")
         script_file = DATA_DIR / "generated_scripts" / f"{safe_co}_apply.py"

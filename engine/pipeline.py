@@ -82,13 +82,13 @@ def run_pipeline_cycle(
     # Filter to candidate jobs that passed evaluation
     candidate_jobs = [
         j for j in evaluated_jobs
-        if j.get("priority_level") in ("CRITICAL_PRIORITY", "HIGH_PRIORITY")
-        and j.get("match_score", 0) >= 70
+        if (j.get("priority_level") in ("CRITICAL_PRIORITY", "HIGH_PRIORITY") and j.get("match_score", 0) >= 65)
+        or (j.get("priority_level") == "NORMAL" and j.get("match_score", 0) >= 60 and j.get("decision") in ("AUTO_APPLY", "STAGE"))
     ]
 
     # If newly evaluated jobs are fewer than apply limit, backfill from top pending EVALUATED jobs in DB
     if len(candidate_jobs) < apply_limit:
-        db_pending = get_pending_priority_jobs(limit=apply_limit * 3)
+        db_pending = get_pending_priority_jobs(limit=apply_limit * 3, min_score=60)
         seen_jids = {j["job_id"] for j in candidate_jobs}
         for dj in db_pending:
             if dj["job_id"] not in seen_jids:

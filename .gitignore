@@ -89,6 +89,7 @@ engine/*_apply.py
 !engine/rippling_apply.py
 !engine/stripe_apply.py
 !engine/turing_apply.py
+!engine/askable_apply.py
 !engine/manatal_apply.py
 !engine/micro1_apply.py
 !engine/breezy_apply.py
