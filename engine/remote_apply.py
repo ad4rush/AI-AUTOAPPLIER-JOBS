@@ -173,24 +173,44 @@ if (fileInput && "{resume_abs}") {{
   }}
 }}
 
+// Handle submission confirmation verification
+let submitted = false;
+let confirmationSnippet = "";
 if ({str(submit).lower()}) {{
   console.log("[Remote-Apply] Submit=True requested. Locating submit button...");
-  await page.evaluate(() => {{
+  submitted = await page.evaluate(() => {{
     const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
     const subBtn = btns.find(b => {{
       const t = (b.innerText || b.value || "").toLowerCase();
       return t.includes("apply") || t.includes("submit") || t.includes("continue");
     }});
-    if (subBtn) subBtn.click();
+    if (subBtn && !subBtn.disabled) {{
+      subBtn.click();
+      return true;
+    }}
+    return false;
   }});
   await new Promise(r => setTimeout(r, 4000));
+  confirmationSnippet = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 500) : "");
 }}
 
+const hasRealForm = formResult.length > 0;
+const isConfirmedSubmitted = submitted && (
+  confirmationSnippet.toLowerCase().includes("thank you") ||
+  confirmationSnippet.toLowerCase().includes("received your application") ||
+  confirmationSnippet.toLowerCase().includes("submitted") ||
+  confirmationSnippet.toLowerCase().includes("success")
+);
+
+const isSuccess = hasRealForm && ({str(submit).lower()} ? isConfirmedSubmitted : true);
+
 console.log(JSON.stringify({{
-  success: true,
+  success: isSuccess,
+  submitted: isConfirmedSubmitted,
   url: await page.url(),
   title: await page.title(),
-  fieldsFilled: formResult
+  fieldsFilled: formResult,
+  error: isSuccess ? null : (hasRealForm ? "Submit confirmation not detected" : "No interactive application form fields found on page")
 }}));
 """
     try:

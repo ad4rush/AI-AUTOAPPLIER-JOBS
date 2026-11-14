@@ -790,7 +790,7 @@ def dispatch_application(
             engine = "jazzhr_apply"
         elif "amazon.jobs" in url_lower or "amazon" in (company or "").lower():
             engine = "amazon_apply"
-        elif "mercor.com" in url_lower or "weworkremotely.com" in url_lower or "remoteok.com" in url_lower:
+        elif "mercor.com" in url_lower or "outlier.ai" in url_lower:
             engine = "remote_apply"
         elif "askable.com" in url_lower or "askable" in (company or "").lower():
             engine = "askable_apply"

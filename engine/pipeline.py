@@ -122,6 +122,7 @@ def run_pipeline_cycle(
         db_job = get_job_by_id(jid)
         if not db_job:
             continue
+        db_job = dict(db_job)
 
         co = db_job["company"]
         title = db_job["title"]
@@ -131,6 +132,10 @@ def run_pipeline_cycle(
 
         if status in ("APPLIED", "STAGED", "STAGED_FOR_REVIEW"):
             print(f"[*] Skipping [{co}] {title} (already {status})")
+            continue
+
+        if "google" in co.lower():
+            print(f"[*] Skipping [{co}] {title} (Candidate directive: exclude Google auto-apply)")
             continue
 
         if "mercor" in co.lower() and ("grant" in title.lower() or "benchmark" in title.lower()):
