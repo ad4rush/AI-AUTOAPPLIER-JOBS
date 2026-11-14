@@ -43,6 +43,7 @@ from engine.config import (
     CANDIDATE_LAST_NAME,
     CANDIDATE_EMAIL,
     CANDIDATE_PERSONAL_EMAIL,
+    CANDIDATE_COLLEGE_EMAIL,
     CANDIDATE_PHONE,
     CANDIDATE_PHONE_PLAIN,
     CANDIDATE_LOCATION,
@@ -74,12 +75,13 @@ def apply_to_linkedin_job(
     resume_path: Optional[str] = None,
     company_name: Optional[str] = None,
     submit: bool = False,
-    profile_id: str = EGO_BROWSER_MAIN_PROFILE_ID,
+    profile_id: str = EGO_BROWSER_COLLEGE_PROFILE_ID,
     task_space_name: Optional[str] = None,
     job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Autonomously navigates and completes the LinkedIn Easy Apply modal for a job.
+    Defaults to Profile 2 ('COLLEGE PROFILE' - Adarsh Jha, adarsh22024@iiitd.ac.in).
     """
     assert_real_candidate_profile()
 
@@ -105,11 +107,12 @@ def apply_to_linkedin_job(
     else:
         resume_abs = str(Path(resume_path).resolve())
 
-    # Candidate profile constants for JavaScript injection
-    cand_first = CANDIDATE_FIRST_NAME.replace('"', '\\"')
-    cand_last = CANDIDATE_LAST_NAME.replace('"', '\\"')
-    cand_email = (CANDIDATE_PERSONAL_EMAIL or CANDIDATE_EMAIL).replace('"', '\\"')
+    # Candidate profile constants for JavaScript injection (Profile 2 College Identity)
+    cand_first = (CANDIDATE_FIRST_NAME or "Adarsh").replace('"', '\\"')
+    cand_last = (CANDIDATE_LAST_NAME or "Jha").replace('"', '\\"')
+    cand_email = (CANDIDATE_COLLEGE_EMAIL or CANDIDATE_EMAIL).replace('"', '\\"')
     cand_phone_digits = CANDIDATE_PHONE_PLAIN.replace('"', '\\"')
+    cand_name = f"{cand_first} {cand_last}".strip()
     
     # Clean city for LinkedIn typeahead dropdown (e.g., "Delhi, India" rather than compound "Delhi / Gurgaon, India")
     raw_city = (CANDIDATE_CITY or "Delhi, India").split("/")[0].strip()
@@ -123,7 +126,7 @@ def apply_to_linkedin_job(
     cand_github = CANDIDATE_GITHUB.replace('"', '\\"')
     cand_current_title = (CANDIDATE_CURRENT_TITLE or "Software Engineer").replace('"', '\\"')
     cand_current_company = (CANDIDATE_CURRENT_COMPANY or "Technology Enterprise").replace('"', '\\"')
-    cand_summary = f"{CANDIDATE_NAME} - B.Tech {ANS_MAJOR} from {ANS_COLLEGE} ({ANS_GRAD_YEAR}). Experienced in AI systems, distributed computing, and backend architecture.".replace('"', '\\"')
+    cand_summary = f"{cand_name} - B.Tech {ANS_MAJOR} from {ANS_COLLEGE} ({ANS_GRAD_YEAR}). Experienced in AI systems, distributed computing, and backend architecture.".replace('"', '\\"')
 
     node_script = f"""
 const fs = await import("node:fs/promises");
@@ -132,7 +135,16 @@ const spaces = await listTaskSpaces();
 let existing = spaces.find(s => s.name === "{tspace}");
 let task;
 if (existing) {{
-  if (existing.ownership === "agent") {{
+  if (existing.profileId && existing.profileId !== "{profile_id}") {{
+    console.log(`[LinkedIn-Apply] Existing space ${{existing.id}} has profile ${{existing.profileId}}, expected {profile_id}. Finishing old space...`);
+    try {{
+      const oldTask = existing.ownership === "agent" ? await taskSpace(existing.id) : await takeOverTaskSpace(existing.id);
+      await oldTask.finish({{ keep: [] }});
+    }} catch(e) {{
+      console.log("[LinkedIn-Apply] Could not close mismatched space:", e.message);
+    }}
+    task = await taskSpace("{tspace}", {{ profileId: "{profile_id}" }});
+  }} else if (existing.ownership === "agent") {{
     task = await taskSpace(existing.id);
   }} else {{
     try {{
@@ -676,7 +688,7 @@ await fs.writeFile("{output_json_path}", JSON.stringify({{
                 job_id=job_id_db,
                 status=new_status,
                 details={
-                    "notes": f"[LinkedIn Easy Apply] {'Submitted directly' if is_submitted else 'Staged in ego-browser Profile 1'}. TaskSpace: {tspace}. Resume: {resume_abs}"
+                    "notes": f"[LinkedIn Easy Apply] {'Submitted directly' if is_submitted else f'Staged in ego-browser {profile_id}'}. TaskSpace: {tspace}. Resume: {resume_abs}"
                 },
                 refresh_summary=True
             )

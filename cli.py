@@ -285,7 +285,7 @@ def cmd_apply_linkedin(args):
     from engine.linkedin_apply import apply_to_linkedin_job
     from engine.db import get_db_connection, update_job_status
     task_space = getattr(args, "task_space", None)
-    profile_id = getattr(args, "profile", None) or "Profile 1"
+    profile_id = getattr(args, "profile", None) or "Profile 2"
 
     # Match database job_id if already ingested
     conn = get_db_connection()
@@ -1250,7 +1250,7 @@ def main():
     apply_li_p.add_argument("--url", required=True, help="LinkedIn Job URL or numeric Job ID")
     apply_li_p.add_argument("--company", help="Optional company name")
     apply_li_p.add_argument("--resume", help="Optional tailored PDF resume path")
-    apply_li_p.add_argument("--profile", default="Profile 1", help="Ego browser profile ID (default: Profile 1)")
+    apply_li_p.add_argument("--profile", default="Profile 2", help="Ego browser profile ID (default: Profile 2 - College Profile)")
     apply_li_p.add_argument("--task-space", help="Optional ego-browser task space name")
     apply_li_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
 
