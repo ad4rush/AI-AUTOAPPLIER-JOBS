@@ -326,6 +326,17 @@ TOOLS = [
             },
             "required": ["job_id", "company", "title", "url"]
         }
+    },
+    {
+        "name": "get_company_delegator",
+        "description": "Retrieves the dedicated remembered AGY worker conversation ID for a company so new job openings for the same company resume that exact delegator session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "company": {"type": "string", "description": "Target company name."}
+            },
+            "required": ["company"]
+        }
     }
 ]
 
@@ -616,6 +627,12 @@ def handle_delegate_job_worker(args: Dict[str, Any]) -> str:
     )
     return json.dumps(res, indent=2)
 
+def handle_get_company_delegator(args: Dict[str, Any]) -> str:
+    from engine.company_delegator_memory import get_company_delegator
+    company = args.get("company", "")
+    res = get_company_delegator(company)
+    return json.dumps(res or {"found": False, "company": company}, indent=2)
+
 DISPATCH_MAP = {
     "spawn_agy_worker": handle_spawn_agy_worker,
     "consult_chatgpt": handle_consult_chatgpt,
@@ -634,6 +651,7 @@ DISPATCH_MAP = {
     "evaluate_job_ai": handle_evaluate_job_ai,
     "find_remote_jobs": handle_find_remote_jobs,
     "delegate_job_worker": handle_delegate_job_worker,
+    "get_company_delegator": handle_get_company_delegator,
 }
 
 def send_response(response: Dict[str, Any]):

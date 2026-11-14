@@ -69,11 +69,25 @@ def init_db():
         updated_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS company_delegators (
+        company_slug TEXT PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        last_job_id TEXT,
+        last_role_title TEXT,
+        ats_platform TEXT,
+        task_space_name TEXT,
+        dispatches_count INTEGER DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
     CREATE INDEX IF NOT EXISTS idx_jobs_company_tier ON jobs(company_tier);
     CREATE INDEX IF NOT EXISTS idx_jobs_canonical_hash ON jobs(canonical_hash);
     CREATE INDEX IF NOT EXISTS idx_dispatches_company ON agent_dispatches(company);
     CREATE INDEX IF NOT EXISTS idx_dispatches_convo ON agent_dispatches(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_company_delegators_convo ON company_delegators(conversation_id);
     """)
 
     conn.commit()

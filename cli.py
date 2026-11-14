@@ -574,6 +574,53 @@ def cmd_delegate_batch(args):
     results = delegate_batch_jobs(jobs[:args.limit], submit=args.submit, max_concurrent=args.limit)
     print("\n" + json.dumps(results, indent=2))
 
+def cmd_delegators(args):
+    from engine.company_delegator_memory import (
+        list_company_delegators,
+        get_company_delegator,
+        save_company_delegator,
+        sync_delegators_from_dispatches
+    )
+
+    action = getattr(args, "action", "list")
+    if action == "list":
+        delegators = list_company_delegators()
+        print(f"\n================================================================================")
+        print(f"REMEMBERED COMPANY DELEGATORS (Total: {len(delegators)})")
+        print(f"================================================================================")
+        for d in delegators:
+            co = d.get("company_name") or d.get("company_slug")
+            cid = d.get("conversation_id")
+            rt = d.get("last_role_title") or "N/A"
+            cnt = d.get("dispatches_count", 1)
+            up = (d.get("updated_at") or "")[:19]
+            print(f"• {co:<30} | Convo: {cid} | Runs: {cnt} | Role: {rt[:25]} ({up})")
+        print(f"================================================================================\n")
+    elif action == "get":
+        if not getattr(args, "company", None):
+            print("[-] Error: --company is required for 'get' action.")
+            sys.exit(1)
+        res = get_company_delegator(args.company)
+        if res:
+            print(f"\n[+] Dedicated worker found for '{args.company}':")
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[-] No existing worker conversation found for '{args.company}'.")
+    elif action == "set":
+        if not getattr(args, "company", None) or not getattr(args, "convo", None):
+            print("[-] Error: --company and --convo are required for 'set' action.")
+            sys.exit(1)
+        saved = save_company_delegator(
+            company=args.company,
+            conversation_id=args.convo,
+            role_title=getattr(args, "role", "") or ""
+        )
+        print(f"[+] Saved company delegator: {json.dumps(saved, indent=2)}")
+    elif action == "sync":
+        cnt = sync_delegators_from_dispatches()
+        print(f"[+] Synced {cnt} company delegator conversations from database dispatches.")
+
+
 def cmd_flush(args):
     from engine.maintenance import flush_system_and_memory
     flush_system_and_memory()
@@ -1222,6 +1269,12 @@ def main():
     del_batch_p.add_argument("--limit", type=int, default=5, help="Max jobs to delegate (default: 5)")
     del_batch_p.add_argument("--submit", action="store_true", help="Submit directly (defaults to staging/review)")
 
+    delegators_p = subparsers.add_parser("delegators", help="Manage and view remembered company-to-worker conversation mappings")
+    delegators_p.add_argument("action", nargs="?", default="list", choices=["list", "get", "set", "sync"], help="Action: list, get, set, sync")
+    delegators_p.add_argument("--company", help="Company name (for get/set)")
+    delegators_p.add_argument("--convo", help="Conversation ID (for set)")
+    delegators_p.add_argument("--role", help="Role title (for set)")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -1304,6 +1357,8 @@ def main():
         cmd_delegate(args)
     elif args.command == "delegate-batch":
         cmd_delegate_batch(args)
+    elif args.command == "delegators":
+        cmd_delegators(args)
     elif args.command == "prime-chatgpt":
         from engine.chatgpt_consultant import prime_chatgpt_with_master_dossier
         res = prime_chatgpt_with_master_dossier(force=args.force, profile_id=args.profile)

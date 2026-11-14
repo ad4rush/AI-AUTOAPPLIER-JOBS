@@ -73,13 +73,62 @@ def build_worker_prompt(
     job_id: str,
     location: str = "",
     submit: bool = True,
-    archetype: str = "RESUME_1_AI_ENGINEER"
+    archetype: str = "RESUME_1_AI_ENGINEER",
+    is_resume: bool = False,
+    previous_role: str = "",
+    conversation_id: str = ""
 ) -> str:
     """
     Builds an exhaustive, context-complete task assignment prompt for the AGY subagent worker.
-    Includes full candidate dossier, what candidate did, what candidate wants to apply for,
-    what candidate wants to do, strict exclusions, security policies, and exact completion criteria.
+    Supports both fresh assignment prompts (with full candidate dossier) and returning worker
+    prompts (resuming existing company sessions with portal memory & browser state continuity).
     """
+    if is_resume:
+        prompt = f"""You are resuming your role as the dedicated autonomous Job Application Worker for candidate {CANDIDATE_NAME} at {company}.
+You previously executed applications for {company} (Previous handled role: '{previous_role or "Initial Opening"}').
+A NEW job opening has just opened up at {company}! Execute this application end-to-end autonomously.
+
+=============================================================================
+NEW JOB OPENING AT {company.upper()}
+=============================================================================
+- Job ID: {job_id}
+- Company: {company}
+- Role Title: {title}
+- Location: {location or 'Remote / India'}
+- Application URL: {url}
+- Suggested Resume Archetype: master_resumes/{archetype}.pdf
+- Submit Mode: {'SUBMIT IMMEDIATELY (Remote/Contract)' if submit else 'STAGE_AND_VALIDATE (Full-Time/On-Site)'}
+
+=============================================================================
+REUSE YOUR ESTABLISHED CONTEXT & ADVANTAGES
+=============================================================================
+1. Browser & Session Continuity:
+   - Reuse your existing ego-browser Profile 1 session, task spaces, cookies, and authentication state for {company}.
+2. Portal Architecture Memory:
+   - Reuse your established memory of {company}'s ATS portal layout (Greenhouse, Ashby, Lever, BambooHR, Workday, etc.).
+   - Reuse the answers you previously supplied for {company}'s custom screening questions, notice period, and salary expectations.
+3. Candidate Verification & Anti-Placeholder Mandate:
+   - Name: {CANDIDATE_NAME} | Email: {CANDIDATE_PERSONAL_EMAIL} | Phone: {CANDIDATE_PHONE}
+   - Education: {ANS_DEGREE} in {ANS_MAJOR}, {ANS_COLLEGE} ({ANS_GRAD_YEAR}, CGPA: {ANS_CGPA})
+   - Current Role: {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY}
+   - When encountering any location preferences, ALWAYS SELECT ALL AVAILABLE LOCATIONS IN INDIA ({ANS_ALL_INDIA_LOCATIONS}).
+   - Absolutely 0 dummy placeholders. Real candidate facts only.
+4. Execution Steps:
+   - Navigate to {url} in your established task space or browser tab.
+   - Fill all application fields cleanly, attach master_resumes/{archetype}.pdf.
+   - If Remote/Contract: Submit immediately and verify on-page confirmation.
+   - If Full-time/On-site or CAPTCHA required: 100% prefill and hand off / stage in ego-browser Profile 1.
+5. Update Database & Delegator Memory:
+   - Update data/jobs.db for job_id '{job_id}': status = '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}', applied_at = datetime.now().isoformat().
+   - Record completion in data/jobs.db table 'agent_dispatches'.
+   - Save delegator memory:
+     python3 -c "from engine.company_delegator_memory import save_company_delegator; save_company_delegator('{company}', '{conversation_id}', '{job_id}', '{title}')"
+6. Final Output:
+   Print a single JSON line at the end:
+   {{"success": true, "job_id": "{job_id}", "company": "{company}", "status": "{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}", "resumed": true}}
+"""
+        return prompt.strip()
+
     prompt = f"""You are an autonomous Job Application Worker Agent for candidate {CANDIDATE_NAME}.
 You have been delegated the specific job assignment below. Execute it end-to-end completely and autonomously.
 
@@ -191,11 +240,33 @@ def delegate_job_to_agent(
     timeout_sec: int = 300
 ) -> Dict[str, Any]:
     """
-    Spawns an autonomous AGY worker with --dangerously-skip-permissions,
-    injecting the complete context dossier, workspace tools, and done criteria.
+    Spawns or resumes an autonomous AGY worker with --dangerously-skip-permissions.
+    Remembers and reuses dedicated company delegator conversations across new job openings,
+    preserving full portal context, task spaces, and screening question memory.
     """
     assert_real_candidate_profile()
 
+    from engine.company_delegator_memory import (
+        get_company_delegator,
+        save_company_delegator,
+        BRAIN_DIR
+    )
+
+    is_resume = False
+    previous_role = ""
+
+    # 1. Lookup dedicated existing conversation for this company if none provided
+    if not conversation_id:
+        existing = get_company_delegator(company)
+        if existing and existing.get("conversation_id"):
+            conversation_id = existing["conversation_id"]
+            is_resume = True
+            previous_role = existing.get("last_role_title", "")
+            print(f"\n[Delegator:Memory] Found existing dedicated worker for '{company}' (Convo ID: {conversation_id}). Resuming session for new opening!")
+        else:
+            print(f"\n[Delegator:Memory] No prior worker found for '{company}'. Starting fresh dedicated worker.")
+
+    # 2. Build context prompt (resumption vs initial dossier)
     prompt = build_worker_prompt(
         company=company,
         title=title,
@@ -203,13 +274,15 @@ def delegate_job_to_agent(
         job_id=job_id,
         location=location,
         submit=submit,
-        archetype=archetype
+        archetype=archetype,
+        is_resume=is_resume,
+        previous_role=previous_role,
+        conversation_id=conversation_id or ""
     )
 
     prompt = resolve_candidate_tokens(prompt)
     verify_script_zero_placeholders(prompt, "Agent Delegator Worker Prompt")
 
-    convo = conversation_id or f"delegated-{job_id}-{int(datetime.now().timestamp())}"
     log_file = LOGS_DIR / f"agent_worker_{re.sub(r'[^a-zA-Z0-9_]', '_', job_id)}.log"
 
     import shutil
@@ -225,8 +298,16 @@ def delegate_job_to_agent(
         cmd.extend(["--conversation", conversation_id])
 
     print(f"\n[Delegator] Spawning AGY worker for [{company}] {title} (Job ID: {job_id})")
-    print(f"            Command: agy -p <full_dossier> --effort high --dangerously-skip-permissions")
+    print(f"            Mode: {'RESUMING_CONVERSATION' if is_resume else 'FRESH_WORKER'}")
+    if conversation_id:
+        print(f"            Reusing Conversation: {conversation_id}")
+    print(f"            Command: agy -p <assignment> --effort high --dangerously-skip-permissions {'--conversation ' + conversation_id if conversation_id else ''}")
     print(f"            Log output: {log_file}")
+
+    # Track pre-spawn brain directories to detect new session ID if starting fresh
+    before_brains = set(p.name for p in BRAIN_DIR.iterdir() if p.is_dir()) if (not is_resume and BRAIN_DIR.exists()) else set()
+
+    convo = conversation_id or f"delegated-{job_id}-{int(datetime.now().timestamp())}"
 
     # Record dispatch in DB
     try:
@@ -237,7 +318,7 @@ def delegate_job_to_agent(
             conversation_id=convo,
             status="DISPATCHED",
             role_title=title,
-            notes=f"Delegated via agy CLI with --dangerously-skip-permissions. Log: {log_file.name}"
+            notes=f"Delegated via agy CLI ({'RESUMING' if is_resume else 'FRESH'}). Log: {log_file.name}"
         )
     except Exception as e:
         print(f"[!] Warning recording dispatch: {e}")
@@ -254,13 +335,25 @@ def delegate_job_to_agent(
                     timeout=timeout_sec
                 )
             success = proc.returncode == 0
+
+            # Detect and save new session ID if fresh
+            if not is_resume and BRAIN_DIR.exists():
+                after_brains = set(p.name for p in BRAIN_DIR.iterdir() if p.is_dir())
+                diff = after_brains - before_brains
+                if diff:
+                    convo = list(diff)[0]
+                    save_company_delegator(company, convo, job_id, title)
+            elif is_resume and conversation_id:
+                save_company_delegator(company, conversation_id, job_id, title)
+
             return {
                 "success": success,
                 "job_id": job_id,
                 "company": company,
                 "returncode": proc.returncode,
                 "log_file": str(log_file),
-                "conversation_id": convo
+                "conversation_id": convo,
+                "resumed": is_resume
             }
         except subprocess.TimeoutExpired:
             return {
@@ -290,6 +383,19 @@ def delegate_job_to_agent(
             close_fds=True,
             start_new_session=True
         )
+
+        # Detect new brain directory shortly after launch if fresh
+        import time
+        if not is_resume and BRAIN_DIR.exists():
+            time.sleep(1.2)
+            after_brains = set(p.name for p in BRAIN_DIR.iterdir() if p.is_dir())
+            diff = after_brains - before_brains
+            if diff:
+                convo = list(diff)[0]
+                save_company_delegator(company, convo, job_id, title)
+        elif is_resume and conversation_id:
+            save_company_delegator(company, conversation_id, job_id, title)
+
         return {
             "success": True,
             "job_id": job_id,
@@ -297,7 +403,8 @@ def delegate_job_to_agent(
             "pid": proc.pid,
             "mode": "BACKGROUND_ASYNC",
             "log_file": str(log_file),
-            "conversation_id": convo
+            "conversation_id": convo,
+            "resumed": is_resume
         }
 
 

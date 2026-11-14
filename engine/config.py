@@ -70,6 +70,11 @@ CANDIDATE_PHONE_PLAIN = os.getenv("CANDIDATE_PHONE_PLAIN", "")
 CANDIDATE_LOCATION = os.getenv("CANDIDATE_LOCATION", "")
 CANDIDATE_CITY = os.getenv("CANDIDATE_CITY", "")
 CANDIDATE_ZIP = os.getenv("CANDIDATE_ZIP", "")
+if not CANDIDATE_ZIP:
+    import re
+    _m = re.search(r'\b\d{6}\b', CANDIDATE_ADDRESS)
+    if _m:
+        CANDIDATE_ZIP = _m.group(0)
 CANDIDATE_ADDRESS = os.getenv("CANDIDATE_ADDRESS", "")
 CANDIDATE_FULL_LOCATION = os.getenv("CANDIDATE_FULL_LOCATION", "")
 CANDIDATE_LINKEDIN = os.getenv("CANDIDATE_LINKEDIN", "")

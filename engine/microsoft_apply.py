@@ -166,10 +166,32 @@ def apply_to_microsoft_job(
 
   // 4. Populate Contact / Address details
   console.log("[MSFT-Apply] Pre-populating Address / Contact details...");
+  async function fillWithKeyboard(id, value) {{
+    await page.evaluate((elId) => {{
+      const el = document.getElementById(elId);
+      if (el) {{
+        el.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+        el.focus();
+      }}
+    }}, id);
+    await page.waitForTimeout(150);
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type(value, {{ delay: 10 }});
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(150);
+  }}
+
   try {{
-    await page.fill('#Contact_Information_q_address', '{CANDIDATE_ADDRESS}');
-    await page.fill('#Contact_Information_q_city', '{CANDIDATE_CITY}');
-    await page.fill('#Contact_Information_q_zip', '{CANDIDATE_ZIP}');
+    await fillWithKeyboard('Contact_Information_q_address', '{CANDIDATE_ADDRESS}');
+  }} catch (e) {{}}
+
+  try {{
+    await fillWithKeyboard('Contact_Information_q_city', '{CANDIDATE_CITY}');
+  }} catch (e) {{}}
+
+  try {{
+    await fillWithKeyboard('Contact_Information_q_zip', '{CANDIDATE_ZIP}');
   }} catch (e) {{}}
 
   try {{
@@ -191,9 +213,9 @@ def apply_to_microsoft_job(
   // 5. Work Authorization - India
   console.log("[MSFT-Apply] Completing Work Authorization fields...");
   const workAuthInputs = await page.evaluate(() => {{
-    const card = Array.from(document.querySelectorAll(".applyFormSectionCard-1yzIZ")).find(c => c.innerText.includes("Work Authorization"));
+    const card = Array.from(document.querySelectorAll(".applyFormSectionCard-1yzIZ, [class*='applyFormSectionCard']")).find(c => c.innerText.includes("Work Authorization"));
     if (!card) return [];
-    return Array.from(card.querySelectorAll("input")).map(i => i.id).filter(Boolean);
+    return Array.from(card.querySelectorAll("input, select")).map(i => i.id).filter(Boolean);
   }});
 
   if (workAuthInputs.length >= 1) {{
@@ -230,8 +252,8 @@ def apply_to_microsoft_job(
     }}
   }});
 
-  // 7. Job Specific Questions -> Check YES for technical competencies
-  console.log("[MSFT-Apply] Answering Job-specific technical questions...");
+  // 7. Job Specific Questions -> Check YES for technical competencies, NO for backlogs/MBA
+  console.log("[MSFT-Apply] Answering Job-specific questions...");
   await page.evaluate(() => {{
     const jobCard = Array.from(document.querySelectorAll(".applyFormSectionCard-1yzIZ")).find(c => c.innerText.includes("Job specific questions"));
     if (jobCard) {{
@@ -242,14 +264,17 @@ def apply_to_microsoft_job(
         radioGroups[r.name].push(r);
       }});
       Object.keys(radioGroups).forEach(name => {{
-        const yesRadio = radioGroups[name].find(r => {{
-          const label = r.closest("label")?.innerText || "";
-          const aria = r.getAttribute("aria-label") || "";
-          return label.includes("Yes") || aria.includes("Yes");
-        }}) || radioGroups[name][0];
-        if (yesRadio) {{
-          yesRadio.click();
-          yesRadio.checked = true;
+        const group = radioGroups[name];
+        const cardText = (group[0]?.closest(".grid-module_col__Z6OUq, .field-3Ez-x")?.innerText || "").toLowerCase();
+        const prefersNo = cardText.includes("backlog") || cardText.includes("graduating in") || cardText.includes("mba");
+        const targetRadio = group.find(r => {{
+          const label = (r.closest("label")?.innerText || r.getAttribute("aria-label") || "").toLowerCase();
+          return prefersNo ? label.includes("no") : (label.includes("yes") || !label.includes("no"));
+        }}) || group[0];
+        if (targetRadio) {{
+          const lbl = targetRadio.closest("label") || targetRadio;
+          lbl.click();
+          targetRadio.checked = true;
         }}
       }});
     }}
