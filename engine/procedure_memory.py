@@ -261,16 +261,134 @@ def resolve_questions_for_company(
     return resolved_answers
 
 
+def generate_procedure_skill_content(
+    company: str,
+    ats_platform: str,
+    url: str,
+    known_fields: Optional[List[str]] = None,
+    selectors: Optional[Dict[str, str]] = None,
+    auth_flow: str = "",
+    question_answers: Optional[Dict[str, str]] = None,
+    notes: str = "",
+    step_by_step: Optional[List[str]] = None,
+    task_space: str = "",
+    last_updated: str = ""
+) -> str:
+    """Generates markdown documentation for a company apply procedure formatted as an Agent Skill (SKILL.md)."""
+    comp_slug = _slugify(company)
+    task_space_name = task_space or f"apply_{comp_slug}"
+    now_str = last_updated or datetime.now().isoformat()
+    fields = known_fields or []
+    sels = selectors or {}
+    qas = question_answers or {}
+    steps = step_by_step or [
+        "1. Open target application URL in ego-browser Profile 1.",
+        "2. Check for cookie banners or privacy consent modals and dismiss them.",
+        "3. Attach tailored 1-page PDF resume to input[type='file'].",
+        "4. Pre-populate all primary contact information (name, email, phone, address).",
+        "5. If location preferences appear, select ALL available Indian locations.",
+        "6. Complete custom screening questions, notice period, and compensation expectations.",
+        "7. Verify zero dummy placeholders and 0 validation errors.",
+        "8. Submit immediately (if remote/contract) or stage for user 1-click review (if full-time India)."
+    ]
+
+    lines = [
+        "---",
+        f"name: apply_{comp_slug}",
+        f"description: Verified autonomous application procedure, DOM selectors, authentication, and screening answers for {company}.",
+        f"company: {company}",
+        f"ats_platform: {ats_platform or 'Unknown'}",
+        f"task_space: {task_space_name}",
+        f"last_updated: {now_str}",
+        "---",
+        "",
+        f"# {company} Application Procedure & Portal Knowledge",
+        "",
+        "## 1. Portal Architecture & Authentication",
+        f"- **Company Name:** {company}",
+        f"- **ATS Platform:** {ats_platform or 'Custom / Unknown'}",
+        f"- **Primary Job / Apply URL:** {url or 'N/A'}",
+        "- **Browser Profile:** Profile 1 (Main Profile / Personal Account)",
+        f"- **Task Space:** `{task_space_name}`",
+        f"- **Authentication Method:** {auth_flow or 'Direct Apply / Google OAuth / Profile 1'}",
+        "",
+        "## 2. Discovered Fields & DOM Selectors"
+    ]
+
+    if sels:
+        for k, v in sels.items():
+            lines.append(f"- **{k}:** `{v}`")
+    elif fields:
+        for f in fields:
+            lines.append(f"- Field: `{f}`")
+    else:
+        lines.append("- Resume Input: `input[type='file']`")
+        lines.append("- First Name: `input[name*='first'], #Contact_Information_firstname`")
+        lines.append("- Last Name: `input[name*='last'], #Contact_Information_lastname`")
+        lines.append("- Email: `input[type='email'], #Contact_Information_email`")
+        lines.append("- Phone: `input[type='tel'], #Contact_Information_phone`")
+
+    lines.append("")
+    lines.append("## 3. Screening Questions & Verified Candidate Answers")
+    lines.append(f"- **Work Authorization (India):** {ANS_WORK_AUTH_INDIA}")
+    lines.append(f"- **Visa Sponsorship (India):** {ANS_SPONSORSHIP_INDIA}")
+    lines.append(f"- **Notice Period:** {ANS_NOTICE_PERIOD} ({ANS_EARLIEST_START_DATE})")
+    lines.append(f"- **Compensation Expectations:** Current: {ANS_CURRENT_CTC} | Expected: {ANS_EXPECTED_CTC}")
+    lines.append(f"- **Current Role:** {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY}")
+
+    if qas:
+        lines.append("")
+        lines.append("### Custom Screening Answers")
+        for q, a in qas.items():
+            lines.append(f"- **Q:** *{q}*")
+            lines.append(f"  **A:** {a}")
+
+    lines.append("")
+    lines.append("## 4. Execution Quirks & Modals")
+    lines.append(f"- **Location Selection Policy:** When location preferences appear (multi-select), ALWAYS select ALL available Indian locations ({ANS_ALL_INDIA_LOCATIONS}).")
+    lines.append("- **Anti-Placeholder Mandate:** Every field must be populated with verified candidate credentials loaded from `.env`. Zero dummy placeholders.")
+    if notes:
+        lines.append(f"- **Special Notes:** {notes}")
+
+    lines.append("")
+    lines.append("## 5. Step-by-Step Procedure")
+    for s in steps:
+        lines.append(f"- {s}")
+
+    lines.append("")
+    lines.append("## 6. Post-Application Persistence Guard")
+    lines.append(f"- Update `data/jobs.db` table `jobs` with status, timestamp, and verification notes.")
+    lines.append(f"- Update `data/company_apply_procedures/{comp_slug}.json` with any newly learned selectors.")
+    lines.append(f"- Update `data/company_apply_procedures/{comp_slug}/SKILL.md` (this file).")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def record_company_procedure(
     company: str,
     ats_platform: str,
     url: str,
     fields_found: Optional[List[str]] = None,
-    notes: str = ""
-):
-    """Records the discovered application structure for a company."""
+    notes: str = "",
+    selectors: Optional[Dict[str, str]] = None,
+    auth_flow: str = "",
+    question_answers: Optional[Dict[str, str]] = None,
+    step_by_step_instructions: Optional[List[str]] = None,
+    task_space: str = ""
+) -> Dict[str, Any]:
+    """
+    Records and persistently self-improves the discovered application structure for a company.
+    Writes machine-readable JSON data to data/company_apply_procedures/{comp_slug}.json,
+    and agent skill documentation to data/company_apply_procedures/{comp_slug}/SKILL.md
+    as well as data/company_apply_procedures/{comp_slug}_procedure.md.
+    """
     comp_slug = _slugify(company)
     company_proc_file = PROCEDURES_DIR / f"{comp_slug}.json"
+    skill_dir = PROCEDURES_DIR / comp_slug
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_file = skill_dir / "SKILL.md"
+    markdown_proc_file = PROCEDURES_DIR / f"{comp_slug}_procedure.md"
 
     data = {}
     if company_proc_file.exists():
@@ -280,20 +398,63 @@ def record_company_procedure(
         except Exception:
             pass
 
+    now = datetime.now().isoformat()
     data["company"] = company
-    data["ats_platform"] = ats_platform
-    data["last_url"] = url
-    data["last_updated"] = datetime.now().isoformat()
+    data["company_slug"] = comp_slug
+    data["ats_platform"] = ats_platform or data.get("ats_platform", "")
+    data["last_url"] = url or data.get("last_url", "")
+    data["last_updated"] = now
+
     if fields_found:
         data["known_fields"] = sorted(list(set(data.get("known_fields", []) + fields_found)))
+    if selectors:
+        existing_sels = data.get("selectors", {})
+        existing_sels.update(selectors)
+        data["selectors"] = existing_sels
+    if auth_flow:
+        data["auth_flow"] = auth_flow
+    if question_answers:
+        existing_qa = data.get("question_answers", {})
+        existing_qa.update(question_answers)
+        data["question_answers"] = existing_qa
     if notes:
         data["notes"] = notes
+    if step_by_step_instructions:
+        data["step_by_step_instructions"] = step_by_step_instructions
+    if task_space:
+        data["task_space_name"] = task_space
 
+    # 1. Save machine-readable JSON procedure
     try:
         with open(company_proc_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        print(f"[!] Error recording company procedure: {e}")
+        print(f"[!] Error recording company procedure JSON: {e}")
+
+    # 2. Save human & agent readable SKILL.md and _procedure.md
+    skill_content = generate_procedure_skill_content(
+        company=company,
+        ats_platform=data.get("ats_platform", ats_platform),
+        url=data.get("last_url", url),
+        known_fields=data.get("known_fields", []),
+        selectors=data.get("selectors", {}),
+        auth_flow=data.get("auth_flow", auth_flow),
+        question_answers=data.get("question_answers", {}),
+        notes=data.get("notes", notes),
+        step_by_step=data.get("step_by_step_instructions", step_by_step_instructions),
+        task_space=data.get("task_space_name", task_space),
+        last_updated=now
+    )
+
+    try:
+        with open(skill_file, "w", encoding="utf-8") as f:
+            f.write(skill_content)
+        with open(markdown_proc_file, "w", encoding="utf-8") as f:
+            f.write(skill_content)
+    except Exception as e:
+        print(f"[!] Error writing company procedure SKILL.md: {e}")
+
+    return data
 
 
 if __name__ == "__main__":

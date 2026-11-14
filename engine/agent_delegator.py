@@ -60,6 +60,7 @@ from engine.config import (
     resolve_candidate_tokens
 )
 from engine.db import get_job_by_id, record_agent_dispatch, update_job_status
+from engine.company_delegator_memory import normalize_company_slug
 
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -82,7 +83,11 @@ def build_worker_prompt(
     Builds an exhaustive, context-complete task assignment prompt for the AGY subagent worker.
     Supports both fresh assignment prompts (with full candidate dossier) and returning worker
     prompts (resuming existing company sessions with portal memory & browser state continuity).
+    Mandates lifelong procedure self-improvement, SKILL.md-style procedure persistence, and
+    atomic database updates for every job applied or staged.
     """
+    comp_slug = normalize_company_slug(company)
+
     if is_resume:
         prompt = f"""You are resuming your role as the dedicated autonomous Job Application Worker for candidate {CANDIDATE_NAME} at {company}.
 You previously executed applications for {company} (Previous handled role: '{previous_role or "Initial Opening"}').
@@ -92,7 +97,7 @@ A NEW job opening has just opened up at {company}! Execute this application end-
 NEW JOB OPENING AT {company.upper()}
 =============================================================================
 - Job ID: {job_id}
-- Company: {company}
+- Company: {company} (Company Slug: {comp_slug})
 - Role Title: {title}
 - Location: {location or 'Remote / India'}
 - Application URL: {url}
@@ -103,9 +108,10 @@ NEW JOB OPENING AT {company.upper()}
 REUSE YOUR ESTABLISHED CONTEXT & ADVANTAGES
 =============================================================================
 1. Browser & Session Continuity:
-   - Reuse your existing ego-browser Profile 1 session, task spaces, cookies, and authentication state for {company}.
+   - Reuse your existing ego-browser Profile 1 session, task space (`apply_{comp_slug}`), cookies, and authentication state for {company}.
 2. Portal Architecture Memory:
-   - Reuse your established memory of {company}'s ATS portal layout (Greenhouse, Ashby, Lever, BambooHR, Workday, etc.).
+   - Reuse your established memory of {company}'s ATS portal layout (Eightfold, Greenhouse, Ashby, Lever, BambooHR, Workday, etc.).
+   - Read from your existing procedure file: `data/company_apply_procedures/{comp_slug}.json` or `data/company_apply_procedures/{comp_slug}/SKILL.md`.
    - Reuse the answers you previously supplied for {company}'s custom screening questions, notice period, and salary expectations.
 3. Candidate Verification & Anti-Placeholder Mandate:
    - Name: {CANDIDATE_NAME} | Email: {CANDIDATE_PERSONAL_EMAIL} | Phone: {CANDIDATE_PHONE}
@@ -113,18 +119,89 @@ REUSE YOUR ESTABLISHED CONTEXT & ADVANTAGES
    - Current Role: {CANDIDATE_CURRENT_TITLE} at {CANDIDATE_CURRENT_COMPANY}
    - When encountering any location preferences, ALWAYS SELECT ALL AVAILABLE LOCATIONS IN INDIA ({ANS_ALL_INDIA_LOCATIONS}).
    - Absolutely 0 dummy placeholders. Real candidate facts only.
-4. Execution Steps:
-   - Navigate to {url} in your established task space or browser tab.
-   - Fill all application fields cleanly, attach master_resumes/{archetype}.pdf.
-   - If Remote/Contract: Submit immediately and verify on-page confirmation.
-   - If Full-time/On-site or CAPTCHA required: 100% prefill and hand off / stage in ego-browser Profile 1.
-5. Update Database & Delegator Memory:
-   - Update data/jobs.db for job_id '{job_id}': status = '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}', applied_at = datetime.now().isoformat().
-   - Record completion in data/jobs.db table 'agent_dispatches'.
-   - Save delegator memory:
-     python3 -c "from engine.company_delegator_memory import save_company_delegator; save_company_delegator('{company}', '{conversation_id}', '{job_id}', '{title}')"
-6. Final Output:
-   Print a single JSON line at the end:
+
+=============================================================================
+SELF-IMPROVING APPLICATION PROCEDURE & LIFELONG MEMORY MANDATE (CRITICAL)
+=============================================================================
+You are an intelligent, self-improving AI worker. You NEVER execute an application blindly or discard learned knowledge.
+You MUST record and persist your entire application procedure so that your memory compounds across every application for {company}.
+
+1. Pre-Application Discovery & Procedure Check:
+   Before opening or touching any form, check and read existing procedure memory if available:
+   - Machine JSON Cache: data/company_apply_procedures/{comp_slug}.json
+   - Agent Skill Doc:    data/company_apply_procedures/{comp_slug}/SKILL.md (or data/company_apply_procedures/{comp_slug}_procedure.md)
+   - Universal Q&A Cache: data/company_apply_procedures/qa_cache.json
+   Reuse all memorized DOM selectors, screening question answers, auth quirks, and bypass notes.
+
+2. Post-Application Persistence & Lifelong Memory Recording (MANDATORY):
+   Immediately upon staging or submitting the application, you MUST update and save the apply procedure:
+   a) Machine-Readable JSON Procedure:
+      - Path: data/company_apply_procedures/{comp_slug}.json
+      - Must include: company, ats_platform, last_url, known_fields, selectors, question_answers, notes.
+      - Execute via Python CLI helper:
+        python3 -c "from engine.procedure_memory import record_company_procedure; record_company_procedure('{company}', ats_platform='<ats>', url='{url}', fields_found=['<field1>', '<field2>'], notes='<quirks, modals, datepicker tips>', task_space='apply_{comp_slug}')"
+
+   b) Agent Skill Markdown File (same style of path as skills / SKILL.md):
+      - Paths: `data/company_apply_procedures/{comp_slug}/SKILL.md` AND `data/company_apply_procedures/{comp_slug}_procedure.md`
+      - Must follow standard SKILL.md format with YAML frontmatter:
+        ---
+        name: apply_{comp_slug}
+        description: Verified autonomous apply procedure, DOM selectors, authentication, and screening answers for {company}.
+        company: {company}
+        ats_platform: <ats_platform>
+        task_space: apply_{comp_slug}
+        last_updated: <ISO_TIMESTAMP>
+        ---
+        # {company} Application Procedure & Portal Knowledge
+        ## 1. Portal Architecture & Authentication
+        - ATS Platform: <ats>
+        - Primary Apply URL: {url}
+        - Browser Profile: Profile 1 (Main Profile)
+        - Task Space: `apply_{comp_slug}`
+        - Authentication Flow: (Google OAuth / email / direct)
+        ## 2. Discovered Fields & DOM Selectors
+        - Input selectors, dropdown triggers, file upload selector
+        ## 3. Screening Questions & Candidate Answers
+        - Verified answers for notice period, salary, authorization, and essay prompts
+        ## 4. Execution Quirks & Modals
+        - Modals to dismiss (cookies, privacy agreements), datepicker format
+        ## 5. Step-by-Step Procedure
+
+   c) Dedicated Company Delegator Worker Memory:
+      - Persistently map your conversation session to {company} so future openings return directly to you:
+        python3 -c "from engine.company_delegator_memory import save_company_delegator; save_company_delegator('{company}', '{conversation_id}', job_id='{job_id}', role_title='{title}', ats_platform='<ats>', task_space_name='apply_{comp_slug}')"
+
+=============================================================================
+MANDATORY DATABASE UPDATE FOR EVERY JOB APPLIED OR STAGED (CRITICAL)
+=============================================================================
+Every single job you apply to or stage MUST be permanently and atomically recorded in data/jobs.db.
+NO job applied or staged must ever be left unrecorded in the database.
+
+1. Update jobs table in data/jobs.db:
+   Set:
+   - status: '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}'
+   - applied_at: ISO timestamp (e.g. datetime.now().isoformat())
+   - tailored_resume_dir: exact path to resume used ('master_resumes/{archetype}.pdf')
+   - notes: detailed on-page confirmation (e.g. redirect URL, confirmation number, submission banner text, or staging status)
+
+   Execute via Python CLI helper:
+   python3 -c "from engine.db import update_job_status; from datetime import datetime; update_job_status('{job_id}', '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}', details={{'applied_at': datetime.now().isoformat(), 'tailored_resume_dir': 'master_resumes/{archetype}.pdf', 'notes': 'Application verified and confirmed on {company} portal via ego-browser Profile 1.'}}, refresh_summary=True)"
+
+2. Re-generate Human Dashboard Summary:
+   python3 -c "from engine.db import update_text_summary; update_text_summary()"
+
+3. Record Dispatch Log:
+   Ensure completion is recorded in data/jobs.db table 'agent_dispatches'.
+
+=============================================================================
+EXECUTION STEPS
+=============================================================================
+1. Navigate to {url} in your established task space (`apply_{comp_slug}`) on Profile 1.
+2. Fill all application fields cleanly, attach master_resumes/{archetype}.pdf.
+3. If Remote/Contract: Submit immediately and verify on-page confirmation.
+4. If Full-time/On-site or CAPTCHA required: 100% prefill and hand off / stage in ego-browser Profile 1.
+5. Save procedure memory JSON & SKILL.md, save delegator memory, and update data/jobs.db.
+6. Print Final JSON line:
    {{"success": true, "job_id": "{job_id}", "company": "{company}", "status": "{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}", "resumed": true}}
 """
         return prompt.strip()
@@ -195,7 +272,7 @@ SECURITY & ANTI-PLACEHOLDER MANDATE (CRITICAL)
 YOUR ASSIGNED JOB TARGET
 =============================================================================
 - Job ID: {job_id}
-- Company: {company}
+- Company: {company} (Company Slug: {comp_slug})
 - Role Title: {title}
 - Location: {location or 'Remote / India'}
 - Application URL: {url}
@@ -203,27 +280,102 @@ YOUR ASSIGNED JOB TARGET
 - Submit Mode: {'SUBMIT IMMEDIATELY (Remote/Contract)' if submit else 'STAGE_AND_VALIDATE (Full-Time/On-Site)'}
 
 =============================================================================
+SELF-IMPROVING APPLICATION PROCEDURE & LIFELONG MEMORY MANDATE (CRITICAL)
+=============================================================================
+You are an intelligent, self-improving AI worker. You NEVER execute an application blindly or discard learned knowledge.
+You MUST record and persist your entire application procedure so that future worker instances can execute identically without re-discovering or guessing.
+
+1. Pre-Application Discovery & Procedure Check:
+   Before opening or touching any form, check and read existing procedure memory if available:
+   - Machine JSON Cache: data/company_apply_procedures/{comp_slug}.json
+   - Agent Skill Doc:    data/company_apply_procedures/{comp_slug}/SKILL.md (or data/company_apply_procedures/{comp_slug}_procedure.md)
+   - Universal Q&A Cache: data/company_apply_procedures/qa_cache.json
+   Reuse all memorized DOM selectors, screening question answers, auth quirks, and bypass notes.
+
+2. Post-Application Persistence & Lifelong Memory Recording (MANDATORY):
+   Immediately upon staging or submitting the application, you MUST update and save the apply procedure:
+   a) Machine-Readable JSON Procedure:
+      - Path: data/company_apply_procedures/{comp_slug}.json
+      - Must include: company, ats_platform, last_url, known_fields, selectors, question_answers, notes.
+      - Execute via Python CLI helper:
+        python3 -c "from engine.procedure_memory import record_company_procedure; record_company_procedure('{company}', ats_platform='<ats>', url='{url}', fields_found=['<field1>', '<field2>'], notes='<quirks, modals, datepicker tips>', task_space='apply_{comp_slug}')"
+
+   b) Agent Skill Markdown File (same style of path as skills / SKILL.md):
+      - Paths: `data/company_apply_procedures/{comp_slug}/SKILL.md` AND `data/company_apply_procedures/{comp_slug}_procedure.md`
+      - Must follow standard SKILL.md format with YAML frontmatter:
+        ---
+        name: apply_{comp_slug}
+        description: Verified autonomous apply procedure, DOM selectors, authentication, and screening answers for {company}.
+        company: {company}
+        ats_platform: <ats_platform>
+        task_space: apply_{comp_slug}
+        last_updated: <ISO_TIMESTAMP>
+        ---
+        # {company} Application Procedure & Portal Knowledge
+        ## 1. Portal Architecture & Authentication
+        - ATS Platform: <ats>
+        - Primary Apply URL: {url}
+        - Browser Profile: Profile 1 (Main Profile)
+        - Task Space: `apply_{comp_slug}`
+        - Authentication Flow: (Google OAuth / email / direct)
+        ## 2. Discovered Fields & DOM Selectors
+        - Input selectors, dropdown triggers, file upload selector
+        ## 3. Screening Questions & Candidate Answers
+        - Verified answers for notice period, salary, authorization, and essay prompts
+        ## 4. Execution Quirks & Modals
+        - Modals to dismiss (cookies, privacy agreements), datepicker format
+        ## 5. Step-by-Step Procedure
+
+   c) Dedicated Company Delegator Worker Memory:
+      - Persistently map your conversation session to {company} so future openings return directly to you:
+        python3 -c "from engine.company_delegator_memory import save_company_delegator; save_company_delegator('{company}', '{conversation_id}', job_id='{job_id}', role_title='{title}', ats_platform='<ats>', task_space_name='apply_{comp_slug}')"
+
+=============================================================================
+MANDATORY DATABASE UPDATE FOR EVERY JOB APPLIED OR STAGED (CRITICAL)
+=============================================================================
+Every single job you apply to or stage MUST be permanently and atomically recorded in data/jobs.db.
+NO job applied or staged must ever be left unrecorded in the database.
+
+1. Update jobs table in data/jobs.db:
+   Set:
+   - status: '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}'
+   - applied_at: ISO timestamp (e.g. datetime.now().isoformat())
+   - tailored_resume_dir: exact path to resume used ('master_resumes/{archetype}.pdf')
+   - notes: detailed on-page confirmation (e.g. redirect URL, confirmation number, submission banner text, or staging status)
+
+   Execute via Python CLI helper:
+   python3 -c "from engine.db import update_job_status; from datetime import datetime; update_job_status('{job_id}', '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}', details={{'applied_at': datetime.now().isoformat(), 'tailored_resume_dir': 'master_resumes/{archetype}.pdf', 'notes': 'Application verified and confirmed on {company} portal via ego-browser Profile 1.'}}, refresh_summary=True)"
+
+2. Re-generate Human Dashboard Summary:
+   python3 -c "from engine.db import update_text_summary; update_text_summary()"
+
+3. Record Dispatch Log:
+   Ensure completion is recorded in data/jobs.db table 'agent_dispatches'.
+
+=============================================================================
 STEP-BY-STEP EXECUTION INSTRUCTIONS
 =============================================================================
 1. Review procedure cache:
-   Check if data/company_apply_procedures/{company.lower()}.json exists for known fields and answers.
+   Check if data/company_apply_procedures/{comp_slug}.json or data/company_apply_procedures/{comp_slug}/SKILL.md exists for known fields and answers.
 2. Execute application:
    - For Ashby: Use `python3 cli.py apply-ashby --url "{url}" {'--submit' if submit else ''}`
    - For Greenhouse: Use `python3 cli.py apply-greenhouse --url "{url}" {'--submit' if submit else ''}`
    - For Lever: Use `python3 cli.py apply-lever --url "{url}" {'--submit' if submit else ''}`
    - For Amazon: Use `python3 engine/amazon_apply.py --url "{url}" {'--submit' if submit else ''}`
-   - For other custom portals: Use ego-browser on Profile 1, navigate to the URL, fill all fields using candidate facts, resolve custom questions, attach master_resumes/{archetype}.pdf, and submit or stage.
+   - For other custom portals (Eightfold, Workday, BambooHR, etc.): Use ego-browser on Profile 1, navigate to the URL, fill all fields using candidate facts, resolve custom questions, attach master_resumes/{archetype}.pdf, and submit or stage.
 3. Verify on-page confirmation:
    Confirm that the form was accepted (e.g. "Thank you for applying", "Application submitted", "summary?result=success", or 0 validation errors).
 4. Update Database:
-   Update data/jobs.db for job_id '{job_id}':
-   Set status = '{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}', applied_at = datetime.now().isoformat(), and add clear confirmation notes.
-5. Record Dispatch:
+   Update data/jobs.db for job_id '{job_id}' using the command in the MANDATORY DATABASE UPDATE section above.
+5. Record Procedure & Delegator Memory:
+   Update data/company_apply_procedures/{comp_slug}.json, data/company_apply_procedures/{comp_slug}/SKILL.md, and call save_company_delegator.
+6. Record Dispatch:
    Record dispatch outcome in data/jobs.db table 'agent_dispatches'.
-6. Print Final Result:
+7. Print Final Result:
    Print a single JSON line at the end:
    {{"success": true, "job_id": "{job_id}", "company": "{company}", "status": "{'APPLIED' if submit else 'STAGED_FOR_REVIEW'}"}}
 """
+    return prompt.strip()
     return prompt.strip()
 
 
