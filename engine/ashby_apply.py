@@ -47,8 +47,12 @@ ASHBY_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "ashby_history.json
 def apply_to_ashby_job(
     job_url: str,
     resume_path: Optional[str] = None,
+    company_name: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "ashby_auto_apply"
+    task_space_name: str = "ashby_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to an Ashby job opening using ego-browser in Profile 1.
@@ -61,11 +65,48 @@ def apply_to_ashby_job(
         clean_url = clean_url.rstrip("/") + "/application"
 
     m_comp = re.search(r"ashbyhq\.com/([^/]+)", clean_url)
-    company_name = m_comp.group(1).capitalize() if m_comp else "Tech Company"
+    resolved_company = company_name or (m_comp.group(1).capitalize() if m_comp else "Tech Company")
+
+    effective_title = title or ""
+    effective_jd = jd_text or ""
+    if (not effective_title or not effective_jd) and (job_id_db or clean_url):
+        try:
+            from engine.db import get_db_connection
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT title, company, raw_jd_path, tailored_resume_dir FROM jobs WHERE job_id = ? OR url LIKE ?", 
+                      (job_id_db or f"%{clean_url}%", f"%{clean_url}%"))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                if not effective_title and row["title"]:
+                    effective_title = row["title"]
+                if not resolved_company and row["company"]:
+                    resolved_company = row["company"]
+                if row["tailored_resume_dir"] and not resume_path:
+                    t_dir = Path(row["tailored_resume_dir"])
+                    if t_dir.exists():
+                        t_pdfs = list(t_dir.glob("*.pdf"))
+                        if t_pdfs:
+                            resume_path = str(t_pdfs[0])
+                if not effective_jd and row["raw_jd_path"] and Path(row["raw_jd_path"]).exists():
+                    try:
+                        with open(row["raw_jd_path"], "r", encoding="utf-8") as f:
+                            effective_jd = f.read()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    if not effective_title:
+        effective_title = "Software Engineer"
+
+    company_name = resolved_company
 
     if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company_name, title="Software Engineer", jd_text="")
+        routed = select_resume_for_job(company=company_name, title=effective_title, jd_text=effective_jd, job_id=job_id_db or "")
         resume_abs = routed.get("resume_path", "")
+        print(f"[*] Ashby dynamic resume routing for {company_name} — '{effective_title}': Archetype={routed.get('archetype')} | File={Path(resume_abs).name} ({routed.get('notes')})")
     else:
         resume_abs = str(Path(resume_path).resolve())
 

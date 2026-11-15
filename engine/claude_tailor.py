@@ -16,12 +16,15 @@ from engine.config import (
     CANDIDATE_NAME,
     CANDIDATE_EMAIL,
     CANDIDATE_PHONE,
+    CANDIDATE_PHONE_PLAIN,
     CANDIDATE_GITHUB,
     CANDIDATE_LINKEDIN,
+    CANDIDATE_PORTFOLIO,
     CANDIDATE_CITY,
     CANDIDATE_CURRENT_COMPANY,
     CANDIDATE_CURRENT_TITLE,
-    ANS_COLLEGE
+    ANS_COLLEGE,
+    assert_real_candidate_profile
 )
 from engine.db import update_job_status
 from engine.latex_compiler import compile_latex_to_pdf

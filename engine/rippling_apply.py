@@ -29,12 +29,16 @@ from engine.config import (
     assert_real_candidate_profile
 )
 from engine.db import update_job_status, update_text_summary
+from engine.resume_router import resolve_resume_and_metadata
 
 def apply_rippling(
     url: str = "https://ats.rippling.com/rippling/jobs/472ecc5e-9610-477b-bbb9-8b075c8f5a67",
     resume_path: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "rippling_auto_apply"
+    task_space_name: str = "rippling_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     assert_real_candidate_profile()
 
@@ -42,9 +46,17 @@ def apply_rippling(
     first_name = name_parts[0] if name_parts else ""
     last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else first_name
 
-    if not resume_path:
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
-    resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company="Rippling",
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=url
+    )
+    resume_abs = meta.get("resume_path", "")
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] Rippling dynamic resume routing for '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     node_script = f"""(async () => {{
 const spaces = await listTaskSpaces();
@@ -331,9 +343,19 @@ console.log(JSON.stringify({{
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Apply to Rippling")
     parser.add_argument("--url", default="https://ats.rippling.com/rippling/jobs/472ecc5e-9610-477b-bbb9-8b075c8f5a67", help="Job posting URL")
+    parser.add_argument("--title", help="Job Title")
+    parser.add_argument("--jd", help="Job Description")
+    parser.add_argument("--job-id", help="Database Job ID")
     parser.add_argument("--resume", help="Tailored PDF resume path")
     parser.add_argument("--submit", action="store_true", help="Submit immediately")
     args = parser.parse_args()
 
-    res = apply_rippling(url=args.url, resume_path=args.resume, submit=args.submit)
+    res = apply_rippling(
+        url=args.url,
+        resume_path=args.resume,
+        title=args.title,
+        jd_text=args.jd,
+        submit=args.submit,
+        job_id_db=args.job_id
+    )
     print(json.dumps(res, indent=2))

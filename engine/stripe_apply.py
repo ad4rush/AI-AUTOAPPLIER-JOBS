@@ -38,6 +38,7 @@ from engine.config import (
     verify_script_zero_placeholders
 )
 from engine.chatgpt_consultant import ask_chatgpt_for_application_answers
+from engine.resume_router import resolve_resume_and_metadata
 
 STRIPE_PROCEDURE_FILE = DATA_DIR / "company_apply_procedures" / "stripe.json"
 STRIPE_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "stripe_history.json"
@@ -89,8 +90,11 @@ def extract_stripe_token(job_url_or_id: str) -> str:
 def apply_to_stripe_job(
     job_url_or_id: str,
     resume_path: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "stripe_auto_apply"
+    task_space_name: str = "stripe_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to a Stripe job opening using ego-browser in Profile 1.
@@ -102,7 +106,17 @@ def apply_to_stripe_job(
     embed_url = f"https://job-boards.greenhouse.io/embed/job_app?for=stripe&token={token}"
     clean_phone = re.sub(r"[^\d]", "", CANDIDATE_PHONE)[-10:]  # 10 digits
 
-    resume_abs = str(Path(resume_path).resolve()) if resume_path and Path(resume_path).exists() else ""
+    meta = resolve_resume_and_metadata(
+        company="Stripe",
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=embed_url
+    )
+    resume_abs = meta.get("resume_path", "")
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] Stripe dynamic resume routing for '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     node_script = f"""
 const spaces = await listTaskSpaces();
@@ -329,11 +343,21 @@ if ({str(submit).lower()}) {{
 def main():
     parser = argparse.ArgumentParser(description="Stripe Auto-Apply Engine (Greenhouse Embed)")
     parser.add_argument("--url", required=True, help="Stripe Job URL or Token / ID")
+    parser.add_argument("--title", help="Job Title")
+    parser.add_argument("--jd", help="Job Description")
+    parser.add_argument("--job-id", help="Database Job ID")
     parser.add_argument("--resume", help="Path to tailored PDF resume")
     parser.add_argument("--submit", action="store_true", help="Submit application immediately (default: stage only)")
     args = parser.parse_args()
 
-    res = apply_to_stripe_job(args.url, resume_path=args.resume, submit=args.submit)
+    res = apply_to_stripe_job(
+        args.url,
+        resume_path=args.resume,
+        title=args.title,
+        jd_text=args.jd,
+        submit=args.submit,
+        job_id_db=args.job_id
+    )
     if res.get("success"):
         print("\n[+] Stripe apply procedure completed successfully!")
     else:

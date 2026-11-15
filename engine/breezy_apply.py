@@ -35,7 +35,7 @@ from engine.config import (
     CANDIDATE_CURRENT_TITLE,
 )
 from engine.procedure_memory import record_company_procedure
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
 
 BREEZY_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "breezy_history.json"
 BREEZY_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -45,8 +45,11 @@ def apply_to_breezy_job(
     job_url: str,
     resume_path: Optional[str] = None,
     company_name: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "breezy_auto_apply"
+    task_space_name: str = "breezy_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to any Breezy HR opening using ego-browser in Profile 1.
@@ -61,11 +64,18 @@ def apply_to_breezy_job(
         m = re.search(r"https?://([^.]+)\.breezy\.hr", target_url)
         company_name = m.group(1).replace("-", " ").title() if m else "Netrix Global"
 
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company_name, title="AI / Agent Engineer", jd_text="")
-        resume_abs = routed.get("resume_path", "")
-    else:
-        resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company=company_name,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=target_url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company_name = meta.get("company", company_name)
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] Breezy HR dynamic resume routing for {company_name} — '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     # Escape paths for JS
     resume_js = json.dumps(resume_abs)
@@ -256,6 +266,9 @@ def main():
     parser = argparse.ArgumentParser(description="Autonomous Breezy HR Job Application Engine")
     parser.add_argument("--url", required=True, help="Breezy HR Job or Apply URL")
     parser.add_argument("--company", help="Optional company name")
+    parser.add_argument("--title", help="Job title for archetype resume matching")
+    parser.add_argument("--jd", help="Job description text")
+    parser.add_argument("--job-id", help="Database Job ID")
     parser.add_argument("--resume", help="Path to tailored PDF resume")
     parser.add_argument("--submit", action="store_true", help="Submit immediately")
     args = parser.parse_args()
@@ -264,7 +277,10 @@ def main():
         args.url,
         resume_path=args.resume,
         company_name=args.company,
-        submit=args.submit
+        title=args.title,
+        jd_text=args.jd,
+        submit=args.submit,
+        job_id_db=args.job_id
     )
     if res.get("submitted"):
         print("\n[+] Breezy HR application SUBMITTED successfully!")

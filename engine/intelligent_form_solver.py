@@ -73,7 +73,7 @@ from engine.procedure_memory import (
     record_company_procedure,
     PROCEDURES_DIR
 )
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
 
 def build_schema_sensor_script() -> str:
     """Returns JavaScript code that inspects and extracts form structure into JSON."""
@@ -567,7 +567,9 @@ def execute_intelligent_application(
     title: str = "Software Engineer",
     resume_path: Optional[str] = None,
     submit: bool = False,
-    task_space_name: Optional[str] = None
+    task_space_name: Optional[str] = None,
+    jd_text: Optional[str] = None,
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Executes end-to-end intelligent, deterministic application flow:
@@ -584,14 +586,20 @@ def execute_intelligent_application(
     tspace = task_space_name or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:12]}"
 
     # 1. Resume selection
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company, title=title)
-        resume_abs = routed.get("resume_path", "")
-    else:
-        resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company=company,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company = meta.get("company", company)
+    title = meta.get("title", title)
 
     print(f"[*] Intelligent Form Solver initiated for {company} — {title}")
-    print(f"[*] URL: {url} | TaskSpace: {tspace} | Resume: {Path(resume_abs).name}")
+    print(f"[*] URL: {url} | TaskSpace: {tspace} | Resume: {Path(resume_abs).name} ({meta.get('notes')})")
 
     # 2. Navigate and inspect schema
     nav_and_extract_script = f"""

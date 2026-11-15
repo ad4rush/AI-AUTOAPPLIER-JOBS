@@ -465,7 +465,9 @@ def cmd_apply_all(args):
             resume_path=pdf_path,
             submit=should_submit,
             task_space=task_space,
-            job_id=job_id
+            job_id=job_id,
+            title=title,
+            jd_text=raw_jd
         )
 
         if res.get("success"):
@@ -882,7 +884,20 @@ def cmd_apply(args):
         print(f"Company: {comp_name} | ATS: {ats} | Policy: {policy}")
         print(f"URL: {url}")
         print("=" * 70)
-        res = dispatch_application(company=comp_name, url=url, resume_path=resume_path, submit=submit)
+        matched_job = None
+        for j in get_all_jobs():
+            j_url = j.get("url") or ""
+            if (j_url and url and (j_url in url or url in j_url)) or (company and j.get("company", "").lower() == company.lower()):
+                matched_job = j
+                break
+        res = dispatch_application(
+            company=comp_name,
+            url=url,
+            resume_path=resume_path,
+            submit=submit,
+            job_id=matched_job["job_id"] if matched_job else None,
+            title=matched_job["title"] if matched_job else None
+        )
         if res.get("success"):
             new_status = "APPLIED" if submit else "STAGED_FOR_REVIEW"
             print(f"\n[+] Application {'SUBMITTED' if submit else 'STAGED & VALIDATED'} successfully for {comp_name}!")
@@ -982,7 +997,15 @@ def cmd_apply(args):
         should_submit = submit or (policy == "AUTO_SUBMIT" and is_remote_contract)
 
         print(f"\n[*] Dispatching application [{count+1}/{len(tailored)}]: {comp} — {title}")
-        res = dispatch_application(company=comp, url=j_url, resume_path=pdf_path, submit=should_submit)
+        res = dispatch_application(
+            company=comp,
+            url=j_url,
+            resume_path=pdf_path,
+            submit=should_submit,
+            job_id=job_id,
+            title=title,
+            jd_text=raw_jd if 'raw_jd' in locals() else ""
+        )
         if res.get("success"):
             new_status = "APPLIED" if should_submit else "STAGED_FOR_REVIEW"
             update_job_status(job_id, new_status, {

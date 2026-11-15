@@ -32,24 +32,37 @@ from engine.config import (
     verify_script_zero_placeholders
 )
 from engine.procedure_memory import record_company_procedure
+from engine.resume_router import resolve_resume_and_metadata
 
 
 def apply_to_smartrecruiters_job(
     url: str,
     resume_path: Optional[str] = None,
     company_name: str = "Target Company",
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: Optional[str] = None
+    task_space_name: Optional[str] = None,
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to a job on SmartRecruiters OneClick UI using ego-browser Profile 1.
     """
     assert_real_candidate_profile()
 
-    if not resume_path or not Path(resume_path).exists():
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
+    meta = resolve_resume_and_metadata(
+        company=company_name,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company_name = meta.get("company", company_name)
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] SmartRecruiters dynamic resume routing for {company_name} — '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
-    resume_abs = str(Path(resume_path).resolve())
     tspace = task_space_name or f"apply_smartrecruiters_{datetime.now().strftime('%H%M%S')}"
 
     script = f"""
@@ -250,6 +263,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SmartRecruiters Apply Engine")
     parser.add_argument("--url", required=True, help="SmartRecruiters Job URL")
     parser.add_argument("--company", default="Target Company", help="Company Name")
+    parser.add_argument("--title", default=None, help="Job Title")
+    parser.add_argument("--jd", default=None, help="Job Description")
+    parser.add_argument("--job-id", default=None, help="Database Job ID")
     parser.add_argument("--resume", help="Optional PDF resume path")
     parser.add_argument("--submit", action="store_true", help="Submit immediately")
     args = parser.parse_args()
@@ -257,7 +273,10 @@ if __name__ == "__main__":
     result = apply_to_smartrecruiters_job(
         url=args.url,
         company_name=args.company,
+        title=args.title,
+        jd_text=args.jd,
         resume_path=args.resume,
-        submit=args.submit
+        submit=args.submit,
+        job_id_db=args.job_id
     )
     print(json.dumps(result, indent=2))

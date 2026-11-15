@@ -74,6 +74,7 @@ def apply_to_linkedin_job(
     url_or_id: str,
     resume_path: Optional[str] = None,
     company_name: Optional[str] = None,
+    title: Optional[str] = None,
     submit: bool = False,
     profile_id: str = EGO_BROWSER_COLLEGE_PROFILE_ID,
     task_space_name: Optional[str] = None,
@@ -100,12 +101,53 @@ def apply_to_linkedin_job(
     staged_screenshot_path = str(DATA_DIR / "company_apply_procedures" / f"staged_linkedin_{numeric_job_id}.png")
     submitted_screenshot_path = str(DATA_DIR / "company_apply_procedures" / f"submitted_linkedin_{numeric_job_id}.png")
 
-    # Default resume resolution if none passed
+    # Resolve actual title and job description from database if not passed
+    effective_title = title or ""
+    effective_jd = ""
+    if (not effective_title or not comp or comp == "Target Company") and (job_id_db or numeric_job_id):
+        try:
+            from engine.db import get_db_connection
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT title, company, raw_jd_path, tailored_resume_dir FROM jobs WHERE job_id = ? OR url LIKE ?", 
+                      (job_id_db or f"%{numeric_job_id}%", f"%{numeric_job_id}%"))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                if not effective_title and row["title"]:
+                    effective_title = row["title"]
+                if (not comp or comp == "Target Company") and row["company"]:
+                    comp = row["company"]
+                if row["tailored_resume_dir"] and not resume_path:
+                    t_dir = Path(row["tailored_resume_dir"])
+                    if t_dir.exists():
+                        t_pdfs = list(t_dir.glob("*.pdf"))
+                        if t_pdfs:
+                            resume_path = str(t_pdfs[0])
+                if row["raw_jd_path"] and Path(row["raw_jd_path"]).exists():
+                    try:
+                        with open(row["raw_jd_path"], "r", encoding="utf-8") as f:
+                            effective_jd = f.read()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    if not effective_title:
+        effective_title = "Software Engineer"
+
+    # Dynamic archetype-aware resume routing
     if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=comp, title="Software Engineer", jd_text="")
+        routed = select_resume_for_job(company=comp, title=effective_title, jd_text=effective_jd, job_id=job_id_db or "")
         resume_abs = routed.get("resume_path", "")
+        chosen_archetype = routed.get("archetype", "SWE_BACKEND")
+        is_custom_tailored = routed.get("is_tailored", False)
     else:
         resume_abs = str(Path(resume_path).resolve())
+        chosen_archetype = classify_master_archetype(effective_title, effective_jd)
+        is_custom_tailored = True
+
+    print(f"[*] LinkedIn dynamic resume routing for {comp} — '{effective_title}': Archetype={chosen_archetype} | File={Path(resume_abs).name} | CustomTailored={is_custom_tailored}")
 
     # Candidate profile constants for JavaScript injection (Profile 2 College Identity)
     cand_first = (CANDIDATE_FIRST_NAME or "Adarsh").replace('"', '\\"')
@@ -310,6 +352,24 @@ while (stepNumber < 15) {{
     }}
   }}
 
+  // Resume File Upload (for dedicated tailored or specialized backend resumes)
+  const isResumeStep = await page.evaluate(() => {{
+    const d = document.querySelector("dialog");
+    const text = (d ? d.innerText : "").toLowerCase();
+    const hasFileInput = d ? !!d.querySelector("input[type='file']") : false;
+    return (text.includes("resume") || text.includes("upload resume")) && hasFileInput;
+  }});
+
+  if (isResumeStep && "{resume_abs}" && ({str(is_custom_tailored).lower()} || "{chosen_archetype}" === "SWE_BACKEND")) {{
+    try {{
+      console.log("[LinkedIn-Apply] Uploading specialized/tailored resume: {resume_abs}");
+      await page.setInputFiles("dialog input[type='file']", ["{resume_abs}"]);
+      await new Promise(r => setTimeout(r, 2000));
+    }} catch(err) {{
+      console.log("[LinkedIn-Apply] Resume file upload note:", err.message);
+    }}
+  }}
+
   // Perform intelligent field filling on current step
   const fillResult = await page.evaluate((cand) => {{
     const d = document.querySelector("dialog");
@@ -378,6 +438,40 @@ while (stepNumber < 15) {{
     for (const gName in groups) {{
       const list = groups[gName];
       const hasChecked = list.some(r => r.checked);
+
+      // Intelligent Resume Archetype Selector
+      const isResumeGroup = list.some(r => {{
+        const txt = (r.parentElement?.parentElement?.innerText || r.getAttribute("aria-label") || "").toLowerCase();
+        return txt.includes(".pdf") || txt.includes("resume");
+      }});
+
+      if (isResumeGroup) {{
+        let targetResumeRadio = null;
+        for (const r of list) {{
+          const rText = (r.parentElement?.parentElement?.innerText || r.getAttribute("aria-label") || "").toLowerCase();
+          if (cand.archetype === "DATA_ENGINEER" && (rText.includes("data") || rText.includes("lakehouse"))) {{
+            targetResumeRadio = r;
+            break;
+          }} else if (cand.archetype === "AI_ENGINEER" && (rText.includes("ai") || rText.includes("ml") || rText.includes("llm"))) {{
+            targetResumeRadio = r;
+            break;
+          }} else if (cand.archetype === "SWE_BACKEND" && (rText.includes("backend") || rText.includes("swe") || rText.includes("software"))) {{
+            targetResumeRadio = r;
+            break;
+          }}
+        }}
+        if (targetResumeRadio && !targetResumeRadio.checked) {{
+          const label = d.querySelector(`label[for="${{targetResumeRadio.id}}"]`);
+          if (label) label.click();
+          else targetResumeRadio.click();
+          targetResumeRadio.checked = true;
+          targetResumeRadio.dispatchEvent(new Event("input", {{ bubbles: true }}));
+          targetResumeRadio.dispatchEvent(new Event("change", {{ bubbles: true }}));
+          touched.push(`resume_radio:${{targetResumeRadio.id}}`);
+        }}
+        continue;
+      }}
+
       if (!hasChecked) {{
         const qText = (list[0].getAttribute("aria-label") || list[0].closest("fieldset")?.innerText || list[0].closest("div")?.parentElement?.innerText || "").toLowerCase();
         let chosen = null;
@@ -543,7 +637,8 @@ while (stepNumber < 15) {{
     github: "{cand_github}",
     currentTitle: "{cand_current_title}",
     currentCompany: "{cand_current_company}",
-    summary: "{cand_summary}"
+    summary: "{cand_summary}",
+    archetype: "{chosen_archetype}"
   }});
 
   if (fillResult.touched) {{

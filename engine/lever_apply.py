@@ -37,7 +37,7 @@ from engine.config import (
     verify_script_zero_placeholders
 )
 from engine.procedure_memory import resolve_questions_for_company, record_company_procedure
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
 
 LEVER_PROCEDURE_FILE = DATA_DIR / "company_apply_procedures" / "lever.json"
 LEVER_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "lever_history.json"
@@ -78,8 +78,12 @@ def normalize_lever_url(url: str) -> str:
 def apply_to_lever_job(
     job_url: str,
     resume_path: Optional[str] = None,
+    company_name: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "lever_auto_apply"
+    task_space_name: str = "lever_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to a Lever job opening using ego-browser in Profile 1.
@@ -90,14 +94,22 @@ def apply_to_lever_job(
     target_url = normalize_lever_url(job_url)
     clean_phone = CANDIDATE_PHONE
 
-    m_comp = re.search(r"lever\.co/([^/]+)", target_url)
-    company_name = m_comp.group(1).capitalize() if m_comp else "Tech Company"
+    if not company_name:
+        m_comp = re.search(r"lever\.co/([^/]+)", target_url)
+        company_name = m_comp.group(1).capitalize() if m_comp else "Tech Company"
 
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company_name, title="Software Engineer", jd_text="")
-        resume_abs = routed.get("resume_path", "")
-    else:
-        resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company=company_name,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=target_url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company_name = meta.get("company", company_name)
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] Lever dynamic resume routing for {company_name} — '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     node_script = f"""
 const spaces = await listTaskSpaces();
@@ -298,11 +310,23 @@ if (submitMode) {{
 def main():
     parser = argparse.ArgumentParser(description="Autonomous Lever Job Application Engine")
     parser.add_argument("--url", required=True, help="Lever Job URL (e.g. https://jobs.lever.co/company/job-id)")
+    parser.add_argument("--company", help="Optional company name")
+    parser.add_argument("--title", help="Job title for archetype resume matching")
+    parser.add_argument("--jd", help="Job description text")
+    parser.add_argument("--job-id", help="Database Job ID")
     parser.add_argument("--resume", help="Path to tailored PDF resume")
     parser.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
     args = parser.parse_args()
 
-    res = apply_to_lever_job(args.url, resume_path=args.resume, submit=args.submit)
+    res = apply_to_lever_job(
+        args.url,
+        resume_path=args.resume,
+        company_name=args.company,
+        title=args.title,
+        jd_text=args.jd,
+        submit=args.submit,
+        job_id_db=args.job_id
+    )
     if res.get("success"):
         print("\n[+] Lever apply procedure completed successfully!")
     else:

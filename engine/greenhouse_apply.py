@@ -39,7 +39,7 @@ from engine.config import (
     verify_script_zero_placeholders
 )
 from engine.procedure_memory import resolve_questions_for_company, record_company_procedure
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
 
 GREENHOUSE_PROCEDURE_FILE = DATA_DIR / "company_apply_procedures" / "greenhouse.json"
 GREENHOUSE_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "greenhouse_history.json"
@@ -124,8 +124,11 @@ def apply_to_greenhouse_job(
     job_url_or_id: str,
     resume_path: Optional[str] = None,
     company_name: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "greenhouse_auto_apply"
+    task_space_name: str = "greenhouse_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Applies to any standard Greenhouse job board or embed opening using ego-browser in Profile 1.
@@ -146,11 +149,18 @@ def apply_to_greenhouse_job(
         else:
             company_name = "Tech Company"
 
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company_name, title="Software Engineer", jd_text="")
-        resume_abs = routed.get("resume_path", "")
-    else:
-        resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company=company_name,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=target_url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company_name = meta.get("company", company_name)
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] Greenhouse dynamic resume routing for {company_name} — '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     node_script = f"""
 const spaces = await listTaskSpaces();
@@ -511,6 +521,9 @@ def main():
     parser = argparse.ArgumentParser(description="Autonomous Greenhouse Job Application Engine")
     parser.add_argument("--url", required=True, help="Greenhouse Job Board URL, Embed URL, or Databricks/Brex URL")
     parser.add_argument("--company", help="Optional company name (e.g. scaleai, databricks, brex)")
+    parser.add_argument("--title", help="Job title for archetype resume matching")
+    parser.add_argument("--jd", help="Job description text")
+    parser.add_argument("--job-id", help="Database Job ID")
     parser.add_argument("--resume", help="Path to tailored PDF resume")
     parser.add_argument("--taskspace", default="remote_contract_auto_apply", help="Task space name")
     parser.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
@@ -520,8 +533,11 @@ def main():
         args.url,
         resume_path=args.resume,
         company_name=args.company,
+        title=args.title,
+        jd_text=args.jd,
         submit=args.submit,
-        task_space_name=args.taskspace
+        task_space_name=args.taskspace,
+        job_id_db=args.job_id
     )
     if res.get("success"):
         print("\n[+] Greenhouse apply procedure completed successfully!")

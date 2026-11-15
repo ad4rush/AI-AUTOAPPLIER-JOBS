@@ -50,7 +50,7 @@ from engine.config import (
     verify_script_zero_placeholders
 )
 from engine.procedure_memory import record_company_procedure
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
 
 BAMBOOHR_HISTORY_FILE = DATA_DIR / "company_apply_procedures" / "bamboohr_history.json"
 BAMBOOHR_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -60,8 +60,11 @@ def apply_to_bamboohr_job(
     url: str,
     resume_path: Optional[str] = None,
     company_name: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None,
     submit: bool = False,
-    task_space_name: str = "bamboohr_auto_apply"
+    task_space_name: str = "bamboohr_auto_apply",
+    job_id_db: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Automates application submission or staging on BambooHR.
@@ -74,11 +77,18 @@ def apply_to_bamboohr_job(
         m = re.search(r"https?://([^.]+)\.bamboohr\.com", clean_url)
         company_name = m.group(1).title() if m else "Target Company"
 
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company_name, title="Blockchain Data Analyst", jd_text="")
-        resume_abs = routed.get("resume_path", "")
-    else:
-        resume_abs = str(Path(resume_path).resolve())
+    meta = resolve_resume_and_metadata(
+        company=company_name,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id_db,
+        resume_path=resume_path,
+        url=clean_url
+    )
+    resume_abs = meta.get("resume_path", "")
+    company_name = meta.get("company", company_name)
+    effective_title = meta.get("title", title or "Software Engineer")
+    print(f"[*] BambooHR dynamic resume routing for {company_name} — '{effective_title}': Archetype={meta.get('archetype')} | File={Path(resume_abs).name} ({meta.get('notes')})")
 
     today_str = datetime.now().strftime("%m/%d/%Y")
 
@@ -420,6 +430,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BambooHR Auto-Apply Runner")
     parser.add_argument("--url", required=True, help="BambooHR Application URL")
     parser.add_argument("--company", default=None, help="Company Name")
+    parser.add_argument("--title", default=None, help="Job Title")
+    parser.add_argument("--jd", default=None, help="Job Description")
+    parser.add_argument("--job-id", default=None, help="Database Job ID")
     parser.add_argument("--resume", default=None, help="Path to tailored PDF resume")
     parser.add_argument("--submit", action="store_true", help="Submit application immediately")
     parser.add_argument("--task-space", default="bamboohr_auto_apply", help="Task space name")
@@ -429,7 +442,10 @@ if __name__ == "__main__":
         url=args.url,
         resume_path=args.resume,
         company_name=args.company,
+        title=args.title,
+        jd_text=args.jd,
         submit=args.submit,
-        task_space_name=args.task_space
+        task_space_name=args.task_space,
+        job_id_db=args.job_id
     )
     print("\nResult:", json.dumps(res, indent=2))

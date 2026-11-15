@@ -745,19 +745,30 @@ def dispatch_application(
     resume_path: Optional[str] = None,
     submit: bool = False,
     task_space: Optional[str] = None,
-    job_id: Optional[str] = None
+    job_id: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     The unified execution router. Looks up the memorized apply procedure for the
     company/URL, executes the appropriate engine, records the result in memory,
     and returns the execution status.
     """
-    from engine.resume_router import select_resume_for_job
+    from engine.resume_router import resolve_resume_and_metadata
 
-    if not resume_path or not Path(resume_path).exists():
-        routed = select_resume_for_job(company=company, title="Software Engineer", jd_text="")
-        resume_path = routed.get("resume_path", "")
-        print(f"[*] Auto-routed resume for {company}: {Path(resume_path).name} ({routed.get('notes')})")
+    meta = resolve_resume_and_metadata(
+        company=company,
+        title=title,
+        jd_text=jd_text,
+        job_id=job_id,
+        resume_path=resume_path,
+        url=url
+    )
+    resume_path = meta.get("resume_path", "")
+    company = meta.get("company", company)
+    effective_title = meta.get("title", title or "Software Engineer")
+    effective_jd = meta.get("jd_text", jd_text or "")
+    print(f"[*] Dispatch application routing for {company} — '{effective_title}': Archetype={meta.get('archetype')} | Resume={Path(resume_path).name} ({meta.get('notes')})")
 
     proc = get_procedure(company=company, url=url)
     engine = proc.get("dispatch_engine") if proc else None
@@ -813,34 +824,34 @@ def dispatch_application(
         res = apply_to_microsoft_job(url, resume_path=resume_path, submit=submit)
     elif engine == "stripe_apply":
         from engine.stripe_apply import apply_to_stripe_job
-        res = apply_to_stripe_job(url, resume_path=resume_path, submit=submit)
+        res = apply_to_stripe_job(url, resume_path=resume_path, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=task_space or "stripe_auto_apply", job_id_db=job_id)
     elif engine == "barclays_apply":
         from engine.barclays_apply import apply_to_barclays_workday
         res = apply_to_barclays_workday(url, resume_path=resume_path, submit=submit)
     elif engine == "ashby_apply":
         from engine.ashby_apply import apply_to_ashby_job
         tspace = task_space or "ashby_auto_apply"
-        res = apply_to_ashby_job(url, resume_path=resume_path, submit=submit, task_space_name=tspace)
+        res = apply_to_ashby_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
         if not res.get("success"):
             print(f"[*] Standard Ashby apply had issues, invoking Intelligent Form Solver fallback...")
             from engine.intelligent_form_solver import execute_intelligent_application
-            res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+            res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "greenhouse_apply":
         from engine.greenhouse_apply import apply_to_greenhouse_job
         tspace = task_space or "greenhouse_auto_apply"
-        res = apply_to_greenhouse_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+        res = apply_to_greenhouse_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
         if not res.get("success"):
             print(f"[*] Standard Greenhouse apply had issues, invoking Intelligent Form Solver fallback...")
             from engine.intelligent_form_solver import execute_intelligent_application
-            res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+            res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "lever_apply":
         from engine.lever_apply import apply_to_lever_job
         tspace = task_space or "lever_auto_apply"
-        res = apply_to_lever_job(url, resume_path=resume_path, submit=submit, task_space_name=tspace)
+        res = apply_to_lever_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
         if not res.get("success"):
             print(f"[*] Standard Lever apply had issues, invoking Intelligent Form Solver fallback...")
             from engine.intelligent_form_solver import execute_intelligent_application
-            res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+            res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "amazon_apply":
         from engine.amazon_apply import apply_to_amazon_job
         tspace = task_space or "amazon_auto_apply"
@@ -851,11 +862,11 @@ def dispatch_application(
     elif engine == "rippling_apply":
         from engine.rippling_apply import apply_rippling
         tspace = task_space or "rippling_auto_apply"
-        res = apply_rippling(url, resume_path=resume_path, submit=submit, task_space_name=tspace)
+        res = apply_rippling(url, resume_path=resume_path, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "breezy_apply":
         from engine.breezy_apply import apply_to_breezy_job
         tspace = task_space or "breezy_auto_apply"
-        res = apply_to_breezy_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+        res = apply_to_breezy_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "manatal_apply":
         from engine.manatal_apply import apply_to_manatal_job
         tspace = task_space or "manatal_auto_apply"
@@ -867,19 +878,19 @@ def dispatch_application(
     elif engine == "jazzhr_apply":
         from engine.jazzhr_apply import apply_to_jazzhr_job
         tspace = task_space or "jazzhr_auto_apply"
-        res = apply_to_jazzhr_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+        res = apply_to_jazzhr_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "smartrecruiters_apply":
         from engine.smartrecruiters_apply import apply_to_smartrecruiters_job
         tspace = task_space or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:12]}"
-        res = apply_to_smartrecruiters_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+        res = apply_to_smartrecruiters_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "bamboohr_apply":
         from engine.bamboohr_apply import apply_to_bamboohr_job
         tspace = task_space or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:12]}"
-        res = apply_to_bamboohr_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace)
+        res = apply_to_bamboohr_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "linkedin_apply":
         from engine.linkedin_apply import apply_to_linkedin_job
         tspace = task_space or f"apply_li_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:10]}"
-        res = apply_to_linkedin_job(url, resume_path=resume_path, company_name=company, submit=submit, task_space_name=tspace, job_id_db=job_id)
+        res = apply_to_linkedin_job(url, resume_path=resume_path, company_name=company, title=effective_title, jd_text=effective_jd, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine == "askable_apply":
         from engine.askable_apply import apply_to_askable_job
         tspace = task_space or "apply_askable"
@@ -908,20 +919,20 @@ def dispatch_application(
                     print(f"[*] Generated script for {company} had issues, invoking Intelligent Form Solver...")
                     from engine.intelligent_form_solver import execute_intelligent_application
                     tspace = task_space or f"apply_{safe_co}"
-                    res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+                    res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
             except Exception as e:
                 print(f"[!] Generated script run error: {e}, falling back to Intelligent Form Solver...")
                 from engine.intelligent_form_solver import execute_intelligent_application
                 tspace = task_space or f"apply_{safe_co}"
-                res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+                res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
         else:
             from engine.intelligent_form_solver import execute_intelligent_application
             tspace = task_space or f"apply_{safe_co}"
-            res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+            res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
     elif engine in ("intelligent_solver", "portal_generator", "ego_browser_task_space") or not res.get("success"):
         from engine.intelligent_form_solver import execute_intelligent_application
         tspace = task_space or f"apply_{re.sub(r'[^a-zA-Z0-9]', '', (company or 'job').lower())[:12]}"
-        res = execute_intelligent_application(url=url, company=company, title="Software Engineer", resume_path=resume_path, submit=submit, task_space_name=tspace)
+        res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
 
     # Record event in procedure memory
     status_str = "APPLIED" if (res.get("success") and submit) else ("STAGED_FOR_REVIEW" if res.get("success") else "FAILED")
