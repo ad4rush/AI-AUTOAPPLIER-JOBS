@@ -272,6 +272,7 @@ console.log("[Stripe-Apply] Validation Status:", status);
 
 // 8. Submit or Keep Staged
 if ({str(submit).lower()}) {{
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
   console.log("[Stripe-Apply] SUBMITTING APPLICATION NOW...");
   await page.click("button[type='submit'], input[type='submit']");
   await page.waitForTimeout(8000);

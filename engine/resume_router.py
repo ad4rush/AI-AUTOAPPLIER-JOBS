@@ -32,6 +32,7 @@ MASTER_RESUMES = {
     "DATA_ENGINEER": MASTER_RESUMES_DIR / "RESUME_2_DATA_ENGINEER.pdf",
     "SWE_BACKEND": MASTER_RESUMES_DIR / "RESUME_3_SWE_BACKEND.pdf",
     "GENERAL_ENGINEERING": MASTER_RESUMES_DIR / "RESUME_4_GENERAL_ENGINEERING.pdf",
+    "ML_ENGINEER": MASTER_RESUMES_DIR / "RESUME_5_ML_ENGINEER.pdf",
 }
 
 ELITE_COMPANIES = {
@@ -46,30 +47,44 @@ ELITE_COMPANIES = {
 def classify_master_archetype(title: str, jd_text: str = "") -> str:
     """
     Classifies the role into one of the specialized master resume archetypes in 0ms.
-    Guarantees that technical roles map to AI, Data, or Backend (never generic).
+    Guarantees that technical roles map to ML, AI, Data, or Backend (never generic).
     """
     clean_title = (title or "").lower()
     clean_jd = (jd_text or "").lower()
     text = f"{clean_title} {clean_jd}"
 
-    # 1. AI / ML / LLMs / Agents / Computer Vision / NLP / Speech
-    ai_keywords = [
-        "ai", "artificial intelligence", "machine learning", "ml", "llm", "vlm",
-        "deep learning", "nlp", "computer vision", "generative ai", "genai",
-        "prompt", "rag", "agent", "agents", "nova sonic", "langchain", "llamaindex",
-        "pytorch", "tensorflow", "applied scientist", "data scientist", "research engineer",
-        "speech", "audio", "nlp engineer", "model evaluation", "fine-tuning", "lora"
+    # 1. Dedicated Machine Learning Engineer / Computer Vision / Data Science Archetype
+    ml_keywords = [
+        "machine learning", "ml engineer", "ml developer", "machine learning engineer",
+        "computer vision", "cv engineer", "deep learning", "deep learning engineer",
+        "data scientist", "data science", "nlp engineer", "natural language processing",
+        "predictive modeling", "applied scientist", "ml research", "mlops", "vision engineer",
+        "perception engineer"
     ]
-    # Check title first with word boundaries or substring
+    for k in ml_keywords:
+        pattern = r"\b" + re.escape(k) + r"\b"
+        if re.search(pattern, clean_title):
+            return "ML_ENGINEER"
+
+    # 2. AI / GenAI / LLMs / Agents / Voice AI / RAG
+    ai_keywords = [
+        "ai", "artificial intelligence", "genai", "generative ai", "llm", "vlm",
+        "prompt", "rag", "agent", "agents", "nova sonic", "langchain", "llamaindex",
+        "voice agent", "speech", "speech engineer", "audio engineer", "model evaluation",
+        "fine-tuning", "lora"
+    ]
     for k in ai_keywords:
         pattern = r"\b" + re.escape(k) + r"\b"
         if re.search(pattern, clean_title):
             return "AI_ENGINEER"
+
     # Check JD if title is generic
-    if any(k in text for k in ["generative ai", "rag", "llm", "agentic", "nova sonic", "pytorch", "huggingface"]):
+    if any(k in text for k in ["computer vision", "opencv", "i3d", "video anomaly", "ensemble model", "xgboost", "catboost", "lightgbm"]):
+        return "ML_ENGINEER"
+    if any(k in text for k in ["generative ai", "retrieval-augmented generation", "llm", "agentic", "nova sonic"]):
         return "AI_ENGINEER"
 
-    # 2. Data Engineering / Lakehouse / Streaming / ETL
+    # 3. Data Engineering / Lakehouse / Streaming / ETL
     data_keywords = [
         "data engineer", "data engineering", "etl", "lakehouse", "spark", "kafka",
         "glue", "hudi", "data warehouse", "data pipeline", "olap", "athena",
@@ -97,7 +112,7 @@ def classify_master_archetype(title: str, jd_text: str = "") -> str:
         if re.search(pattern, clean_title) or k in clean_title:
             return "SWE_BACKEND"
 
-    # 4. Technical default: SWE_BACKEND (Adarsh's core engineering strength)
+    # 4. Technical default: SWE_BACKEND
     return "SWE_BACKEND"
 
 

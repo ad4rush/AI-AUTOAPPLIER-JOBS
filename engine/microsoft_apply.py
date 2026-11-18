@@ -328,12 +328,14 @@ def apply_to_microsoft_job(
   // 10. Submit or Stage
   if ({str(submit).lower()}) {{
     if (audit.submitBtnFound && !audit.submitBtnDisabled) {{
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       console.log("[MSFT-Apply] SUBMITTING APPLICATION NOW...");
       await page.click('button:has-text("Submit application")');
       await page.waitForTimeout(8000);
       const postSubmitText = await page.evaluate(() => document.body.innerText.substring(0, 500));
       console.log("[MSFT-Apply] Post-submit Result:", postSubmitText);
     }} else {{
+      console.log("[[SUBMIT_CLICK_NONE]]");
       console.log("[MSFT-Apply] Cannot submit: submit button disabled or not found.");
     }}
   }} else {{

@@ -2,7 +2,7 @@
 """
 Autonomous Batch Applier for LinkedIn Openings
 Iterates through all unapplied LinkedIn jobs in jobs.db and executes direct submission
-(--submit, no staging required) in Profile 2 (College Identity: Adarsh Jha, IIIT-Delhi).
+(--submit, no staging required) in Profile 2 (College Identity).
 """
 
 import sys
@@ -29,8 +29,8 @@ def run_batch_linkedin_apply(limit: int = 50, delay_sec: int = 4):
     c.execute("""
         SELECT job_id, company, title, url, source, status
         FROM jobs
-        WHERE url LIKE 'https://www.linkedin.com/jobs/view/%'
-          AND status NOT IN ('APPLIED', 'CLOSED', 'REJECTED')
+        WHERE (url LIKE '%linkedin.com/jobs/view/%' OR url LIKE '%linkedin.com/jobs/%')
+          AND status NOT IN ('APPLIED', 'CLOSED', 'REJECTED', 'FAILED', 'EXTERNAL_REDIRECT')
         ORDER BY 
           CASE WHEN source = 'linkedin_easy_apply' THEN 0 ELSE 1 END,
           created_at DESC
@@ -41,7 +41,7 @@ def run_batch_linkedin_apply(limit: int = 50, delay_sec: int = 4):
 
     print(f"==================================================================")
     print(f"[*] AUTONOMOUS LINKEDIN BATCH APPLIER (DIRECT SUBMIT MODE)")
-    print(f"[*] Profile: {EGO_BROWSER_COLLEGE_PROFILE_ID} (College Identity: Adarsh Jha, IIIT-Delhi)")
+    print(f"[*] Profile: {EGO_BROWSER_COLLEGE_PROFILE_ID} (College Identity)")
     print(f"[*] Total target openings queued: {len(jobs)}")
     print(f"==================================================================\n")
 
@@ -53,6 +53,8 @@ def run_batch_linkedin_apply(limit: int = 50, delay_sec: int = 4):
     external_count = 0
     already_count = 0
     error_count = 0
+
+    from engine.dedup import ApplicationGuard
 
     for idx, j in enumerate(jobs, 1):
         job_id = j["job_id"]
@@ -66,39 +68,52 @@ def run_batch_linkedin_apply(limit: int = 50, delay_sec: int = 4):
         print(f"URL: {url} | Source: {src}")
         print(f"------------------------------------------------------------------")
 
-        try:
-            res = apply_to_linkedin_job(
-                url_or_id=url,
-                company_name=company,
-                submit=True,
-                profile_id=EGO_BROWSER_COLLEGE_PROFILE_ID,
-                job_id_db=job_id
-            )
+        with ApplicationGuard(
+            url=url,
+            company=company,
+            title=title,
+            job_id=job_id,
+            submit=True,
+            source="batch_linkedin"
+        ) as guard:
+            if not guard.allowed:
+                print(f"[Dedup] Skipping {company} - {title}: {guard.reason}: {guard.detail}")
+                continue
 
-            if res.get("submitted"):
-                applied_count += 1
-                if res.get("alreadyApplied"):
-                    already_count += 1
-                    print(f"[+] Confirmed ALREADY APPLIED on LinkedIn for {company} — marked APPLIED.")
-                else:
-                    print(f"[+] Successfully SUBMITTED live application for {company} — {title}!")
-            elif not res.get("isEasyApply", True):
-                external_count += 1
-                print(f"[-] Skipped: Role requires external company ATS ({res.get('error')}).")
-                # Update status in db to indicate external ATS needed
-                update_job_status(
-                    job_id=job_id,
-                    status="SKIPPED",
-                    details={"notes": f"[LinkedIn Scraper] External ATS redirect required: {res.get('error')}"},
-                    refresh_summary=False
+            try:
+                res = apply_to_linkedin_job(
+                    url_or_id=url,
+                    company_name=company,
+                    submit=True,
+                    profile_id=EGO_BROWSER_COLLEGE_PROFILE_ID,
+                    job_id_db=job_id
                 )
-            else:
-                error_count += 1
-                print(f"[!] Application did not reach submission: {res.get('error')}")
+                guard.observe_result(res)
 
-        except Exception as e:
-            error_count += 1
-            print(f"[!] Unexpected error applying to {company}: {e}")
+                if res.get("submitted"):
+                    applied_count += 1
+                    if res.get("alreadyApplied"):
+                        already_count += 1
+                        print(f"[+] Confirmed ALREADY APPLIED on LinkedIn for {company} — marked APPLIED.")
+                    else:
+                        print(f"[+] Successfully SUBMITTED live application for {company} — {title}!")
+                elif not res.get("isEasyApply", True):
+                    external_count += 1
+                    print(f"[-] Skipped: Role requires external company ATS ({res.get('error')}).")
+                    # Update status in db to indicate external ATS needed
+                    update_job_status(
+                        job_id=job_id,
+                        status="SKIPPED",
+                        details={"notes": f"[LinkedIn Scraper] External ATS redirect required: {res.get('error')}"},
+                        refresh_summary=False
+                    )
+                else:
+                    error_count += 1
+                    print(f"[!] Application did not reach submission: {res.get('error')}")
+
+            except Exception as e:
+                error_count += 1
+                print(f"[!] Unexpected error applying to {company}: {e}")
 
         # Polite pacing between browser actions
         if idx < len(jobs):

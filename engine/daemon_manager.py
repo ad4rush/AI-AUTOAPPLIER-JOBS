@@ -78,6 +78,7 @@ def run_247_autonomous_daemon(
     last_flush_time = time.time()
     last_watch_time = 0
     last_queue_time = 0
+    last_remote_scrape_time = time.time()
     last_wall_clock = datetime.now()
 
     try:
@@ -113,16 +114,33 @@ def run_247_autonomous_daemon(
                     pass
                 last_watch_time = now
 
-            # 1b. Reactive Pipeline Queue Worker (Auto-evaluates DISCOVERED & auto-applies priority EVALUATED every 30s)
-            if now - last_queue_time >= 30.0:
+            # 1b. Controlled Pipeline Queue Worker (Processes up to 5 jobs, bounded by MAX_CONCURRENT_AGENTS=5)
+            if now - last_queue_time >= 600.0:
                 try:
-                    from engine.pipeline import process_pending_jobs_queue
-                    dispatched_items = process_pending_jobs_queue(limit=5, auto_submit=True)
-                    if dispatched_items:
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Auto-Pipeline Queue: processed {len(dispatched_items)} priority jobs.")
+                    from engine.agent_delegator import count_active_worker_agents, MAX_CONCURRENT_AGENTS
+                    active = count_active_worker_agents()
+                    if active < MAX_CONCURRENT_AGENTS:
+                        available_slots = MAX_CONCURRENT_AGENTS - active
+                        from engine.pipeline import process_pending_jobs_queue
+                        dispatched_items = process_pending_jobs_queue(limit=available_slots, auto_submit=True)
+                        if dispatched_items:
+                            print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Auto-Pipeline Queue: processed {len(dispatched_items)} priority jobs.")
+                    else:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Auto-Pipeline Queue: active workers at capacity ({active}/{MAX_CONCURRENT_AGENTS}), skipping queue run.")
                 except Exception as e:
                     pass
                 last_queue_time = now
+
+            # 1c. Periodic Fast Remote & Contract Scraper (every 30 minutes / 1800s)
+            if now - last_remote_scrape_time >= 1800.0:
+                try:
+                    from engine.scraper import run_lightweight_remote_scraper
+                    new_remote = run_lightweight_remote_scraper()
+                    if new_remote:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🌐 Remote Scraper: ingested {len(new_remote)} new remote/contract jobs.")
+                except Exception as e:
+                    print(f"[!] Warning: Remote scraper error: {e}")
+                last_remote_scrape_time = now
 
             # 2. Periodic Scrape & Staging Cycle Check
             if now - last_cycle_time >= next_cycle_sec or wall_now >= next_cycle_dt:

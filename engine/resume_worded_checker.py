@@ -26,8 +26,8 @@ SCORES_DIR.mkdir(parents=True, exist_ok=True)
 
 def check_resume_score_resumeworded(
     pdf_path: str,
-    task_space_name: str = "resume_worded_scorer",
-    profile_id: str = "Default",
+    task_space_name: str = "check_rw_p2",
+    profile_id: str = "Profile 2",
     timeout_seconds: int = 60
 ) -> Dict[str, Any]:
     """

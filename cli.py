@@ -129,161 +129,237 @@ def cmd_check_profile():
 
 def cmd_apply_microsoft(args):
     assert_real_candidate_profile()
-    res = apply_to_microsoft_job(args.url, resume_path=args.resume, submit=args.submit)
-    if res.get("success"):
-        record_apply_event("Microsoft", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Microsoft application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    with ApplicationGuard(url=args.url, company="Microsoft", title=getattr(args, "title", ""), submit=args.submit, source="cli_microsoft") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        res = apply_to_microsoft_job(args.url, resume_path=args.resume, submit=args.submit)
+        guard.observe_result(res)
+        if res.get("success"):
+            record_apply_event("Microsoft", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Microsoft application successfully SUBMITTED!")
+            else:
+                print("\n[+] Microsoft apply procedure STAGED & VALIDATED successfully!")
+                print("    👉 EGO-BROWSER TAB: TaskSpace 'microsoft_auto_apply' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Microsoft apply procedure STAGED & VALIDATED successfully!")
-            print("    👉 EGO-BROWSER TAB: TaskSpace 'microsoft_auto_apply' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_stripe(args):
     assert_real_candidate_profile()
-    res = apply_to_stripe_job(args.url, resume_path=args.resume, submit=args.submit)
-    if res.get("success"):
-        record_apply_event("Stripe", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Stripe application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    with ApplicationGuard(url=args.url, company="Stripe", title=getattr(args, "title", ""), submit=args.submit, source="cli_stripe") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        res = apply_to_stripe_job(args.url, resume_path=args.resume, submit=args.submit)
+        guard.observe_result(res)
+        if res.get("success"):
+            record_apply_event("Stripe", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Stripe application successfully SUBMITTED!")
+            else:
+                print("\n[+] Stripe apply procedure STAGED & VALIDATED successfully!")
+                print("    👉 EGO-BROWSER TAB: TaskSpace 'stripe_auto_apply' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Stripe apply procedure STAGED & VALIDATED successfully!")
-            print("    👉 EGO-BROWSER TAB: TaskSpace 'stripe_auto_apply' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_barclays(args):
     assert_real_candidate_profile()
-    res = apply_to_barclays_workday(args.url, resume_path=args.resume, submit=args.submit)
-    if res.get("success"):
-        record_apply_event("Barclays", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        print("\n[+] Barclays apply procedure STAGED & VALIDATED successfully!")
-        print("    👉 EGO-BROWSER TAB: TaskSpace 'barclays_apply' (Profile 1: Main Profile)")
-        print("    👉 Action: Confirm Workday verification email, then sign in to complete Step 7/7 Review.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+    from engine.dedup import ApplicationGuard
+    with ApplicationGuard(url=args.url, company="Barclays", title=getattr(args, "title", ""), submit=args.submit, source="cli_barclays") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        res = apply_to_barclays_workday(args.url, resume_path=args.resume, submit=args.submit)
+        guard.observe_result(res)
+        if res.get("success"):
+            record_apply_event("Barclays", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            print("\n[+] Barclays apply procedure STAGED & VALIDATED successfully!")
+            print("    👉 EGO-BROWSER TAB: TaskSpace 'barclays_apply' (Profile 1: Main Profile)")
+            print("    👉 Action: Confirm Workday verification email, then sign in to complete Step 7/7 Review.")
+        else:
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_ashby(args):
     assert_real_candidate_profile()
-    task_space = getattr(args, "task_space", None) or "ashby_auto_apply"
-    res = apply_to_ashby_job(args.url, resume_path=args.resume, submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        m_comp = re.search(r"ashbyhq\.com/([^/]+)", args.url, re.IGNORECASE)
-        comp = getattr(args, "company", None) or (m_comp.group(1).capitalize() if m_comp else "Ashby Supported Company")
-        record_apply_event(comp, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Ashby application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    m_comp = re.search(r"ashbyhq\.com/([^/]+)", args.url, re.IGNORECASE)
+    comp = getattr(args, "company", None) or (m_comp.group(1).capitalize() if m_comp else "")
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_ashby") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "ashby_auto_apply"
+        res = apply_to_ashby_job(args.url, resume_path=args.resume, submit=args.submit, task_space_name=task_space)
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or "Ashby Supported Company"
+            record_apply_event(comp_rec, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Ashby application successfully SUBMITTED!")
+            else:
+                print("\n[+] Ashby apply procedure STAGED & VALIDATED successfully!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Ashby apply procedure STAGED & VALIDATED successfully!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_greenhouse(args):
     assert_real_candidate_profile()
-    task_space = getattr(args, "task_space", None) or "greenhouse_auto_apply"
-    res = apply_to_greenhouse_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        comp = getattr(args, "company", None) or ("Anthropic" if "anthropic" in args.url.lower() else "Greenhouse Supported Company")
-        record_apply_event(comp, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Greenhouse application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    comp = getattr(args, "company", None) or ("Anthropic" if "anthropic" in args.url.lower() else "")
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_greenhouse") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "greenhouse_auto_apply"
+        res = apply_to_greenhouse_job(
+            args.url,
+            resume_path=args.resume,
+            company_name=getattr(args, "company", None),
+            title=getattr(args, "title", None),
+            submit=args.submit,
+            task_space_name=task_space,
+            job_id_db=getattr(args, "job_id", None)
+        )
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or "Greenhouse Supported Company"
+            record_apply_event(comp_rec, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Greenhouse application successfully SUBMITTED!")
+            else:
+                print("\n[+] Greenhouse apply procedure STAGED & VALIDATED successfully!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Greenhouse apply procedure STAGED & VALIDATED successfully!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_lever(args):
     assert_real_candidate_profile()
-    task_space = getattr(args, "task_space", None) or "lever_auto_apply"
-    res = apply_to_lever_job(args.url, resume_path=args.resume, submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        comp = getattr(args, "company", None) or ("Palantir" if "palantir" in args.url.lower() else "Lever Supported Company")
-        record_apply_event(comp, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Lever application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    comp = getattr(args, "company", None) or ("Palantir" if "palantir" in args.url.lower() else "")
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_lever") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "lever_auto_apply"
+        res = apply_to_lever_job(args.url, resume_path=args.resume, submit=args.submit, task_space_name=task_space)
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or "Lever Supported Company"
+            record_apply_event(comp_rec, args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Lever application successfully SUBMITTED!")
+            else:
+                print("\n[+] Lever apply procedure STAGED & VALIDATED successfully!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Lever apply procedure STAGED & VALIDATED successfully!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_remote(args):
     assert_real_candidate_profile()
-    res = apply_to_remote_contract_job(args.url, resume_path=args.resume, submit=args.submit)
-    if res.get("success"):
-        record_apply_event("Mercor", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
-        if args.submit:
-            print("\n[+] Remote contract application successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    comp = getattr(args, "company", None) or "Mercor"
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_remote") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        res = apply_to_remote_contract_job(args.url, resume_path=args.resume, submit=args.submit)
+        guard.observe_result(res)
+        if res.get("success"):
+            record_apply_event("Mercor", args.url, "APPLIED" if args.submit else "STAGED_FOR_REVIEW", args.submit, args.resume or "")
+            if args.submit:
+                print("\n[+] Remote contract application successfully SUBMITTED!")
+            else:
+                print("\n[+] Remote contract apply procedure STAGED & VALIDATED successfully!")
+                print("    👉 EGO-BROWSER TAB: TaskSpace 'remote_contract_auto_apply' (Profile 1: Main Profile)")
+                print("    👉 Action: Open this tab in ego-browser and press Submit.")
         else:
-            print("\n[+] Remote contract apply procedure STAGED & VALIDATED successfully!")
-            print("    👉 EGO-BROWSER TAB: TaskSpace 'remote_contract_auto_apply' (Profile 1: Main Profile)")
-            print("    👉 Action: Open this tab in ego-browser and press Submit.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_jazzhr(args):
     assert_real_candidate_profile()
-    task_space = getattr(args, "task_space", None) or "jazzhr_auto_apply"
-    res = apply_to_jazzhr_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        comp = getattr(args, "company", None) or res.get("company") or "JazzHR Supported Company"
-        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
-        record_apply_event(comp, args.url, new_status, res.get("submitted", False), args.resume or "")
-        if res.get("submitted"):
-            print(f"\n[+] JazzHR application for {comp} successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    comp = getattr(args, "company", None) or ""
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_jazzhr") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "jazzhr_auto_apply"
+        res = apply_to_jazzhr_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or res.get("company") or "JazzHR Supported Company"
+            new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+            record_apply_event(comp_rec, args.url, new_status, res.get("submitted", False), args.resume or "")
+            if res.get("submitted"):
+                print(f"\n[+] JazzHR application for {comp_rec} successfully SUBMITTED!")
+            else:
+                print(f"\n[+] JazzHR apply procedure for {comp_rec} STAGED & VALIDATED successfully!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+                print("    👉 Action: Solve human reCAPTCHA in ego-browser and click Submit Application.")
         else:
-            print(f"\n[+] JazzHR apply procedure for {comp} STAGED & VALIDATED successfully!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-            print("    👉 Action: Solve human reCAPTCHA in ego-browser and click Submit Application.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_bamboohr(args):
     assert_real_candidate_profile()
-    task_space = getattr(args, "task_space", None) or "bamboohr_auto_apply"
-    res = apply_to_bamboohr_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        comp = getattr(args, "company", None) or res.get("company") or "BambooHR Supported Company"
-        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
-        record_apply_event(comp, args.url, new_status, res.get("submitted", False), args.resume or "")
-        if res.get("submitted"):
-            print(f"\n[+] BambooHR application for {comp} successfully SUBMITTED!")
+    from engine.dedup import ApplicationGuard
+    comp = getattr(args, "company", None) or ""
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_bamboohr") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "bamboohr_auto_apply"
+        res = apply_to_bamboohr_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", None), submit=args.submit, task_space_name=task_space)
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or res.get("company") or "BambooHR Supported Company"
+            new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+            record_apply_event(comp_rec, args.url, new_status, res.get("submitted", False), args.resume or "")
+            if res.get("submitted"):
+                print(f"\n[+] BambooHR application for {comp_rec} successfully SUBMITTED!")
+            else:
+                print(f"\n[+] BambooHR apply procedure for {comp_rec} STAGED & VALIDATED successfully (0 errors)!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
+                print("    👉 Action: Complete reCAPTCHA check in ego-browser and click Submit Application.")
         else:
-            print(f"\n[+] BambooHR apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-            print("    👉 Action: Complete reCAPTCHA check in ego-browser and click Submit Application.")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_smartrecruiters(args):
     assert_real_candidate_profile()
+    from engine.dedup import ApplicationGuard
     from engine.smartrecruiters_apply import apply_to_smartrecruiters_job
-    task_space = getattr(args, "task_space", None) or "smartrecruiters_auto_apply"
-    res = apply_to_smartrecruiters_job(args.url, resume_path=args.resume, company_name=getattr(args, "company", "Target Company"), submit=args.submit, task_space_name=task_space)
-    if res.get("success"):
-        comp = getattr(args, "company", None) or res.get("company") or "SmartRecruiters Supported Company"
-        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
-        record_apply_event(comp, args.url, new_status, res.get("submitted", False), args.resume or "")
-        if res.get("submitted"):
-            print(f"\n[+] SmartRecruiters application for {comp} successfully SUBMITTED!")
+    comp = getattr(args, "company", None) or ""
+    with ApplicationGuard(url=args.url, company=comp, title=getattr(args, "title", ""), submit=args.submit, source="cli_smartrecruiters") as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+        task_space = getattr(args, "task_space", None) or "smartrecruiters_auto_apply"
+        res = apply_to_smartrecruiters_job(args.url, resume_path=args.resume, company_name=comp or "Target Company", submit=args.submit, task_space_name=task_space)
+        guard.observe_result(res)
+        if res.get("success"):
+            comp_rec = comp or res.get("company") or "SmartRecruiters Supported Company"
+            new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+            record_apply_event(comp_rec, args.url, new_status, res.get("submitted", False), args.resume or "")
+            if res.get("submitted"):
+                print(f"\n[+] SmartRecruiters application for {comp_rec} successfully SUBMITTED!")
+            else:
+                print(f"\n[+] SmartRecruiters apply procedure for {comp_rec} STAGED & VALIDATED successfully (0 errors)!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
         else:
-            print(f"\n[+] SmartRecruiters apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{task_space}' (Profile 1: Main Profile)")
-    else:
-        print("\n[!] Application staging encountered issues. Check logs above.")
+            print("\n[!] Application staging encountered issues. Check logs above.")
 
 def cmd_apply_linkedin(args):
     assert_real_candidate_profile()
     from engine.linkedin_apply import apply_to_linkedin_job
     from engine.db import get_db_connection, update_job_status
+    from engine.dedup import ApplicationGuard
     task_space = getattr(args, "task_space", None)
     profile_id = getattr(args, "profile", None) or "Profile 2"
 
@@ -298,33 +374,47 @@ def cmd_apply_linkedin(args):
 
     db_job_id = row["job_id"] if row else None
     comp_name = getattr(args, "company", None) or (row["company"] if row else None)
+    job_title = getattr(args, "title", None) or (row["title"] if row else "")
 
-    res = apply_to_linkedin_job(
-        url_or_id=args.url,
-        resume_path=args.resume,
-        company_name=comp_name,
+    with ApplicationGuard(
+        url=args.url,
+        company=comp_name or "",
+        title=job_title or "",
+        job_id=db_job_id or "",
         submit=args.submit,
-        profile_id=profile_id,
-        task_space_name=task_space,
-        job_id_db=db_job_id
-    )
-    if res.get("success"):
-        comp = res.get("company") or comp_name or "LinkedIn Job"
-        new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
-        record_apply_event(comp, res.get("url") or args.url, new_status, res.get("submitted", False), args.resume or "", job_id=db_job_id or "")
-        if db_job_id:
-            up_details = {"notes": f"[LinkedIn Easy Apply] {'Submitted' if res.get('submitted') else 'Staged in ego-browser'}. TaskSpace: {res.get('task_space')}"}
+        source="cli_linkedin"
+    ) as guard:
+        if not guard.allowed:
+            print(f"\n[Dedup] Blocked - {guard.reason}: {guard.detail}")
+            return
+
+        res = apply_to_linkedin_job(
+            url_or_id=args.url,
+            resume_path=args.resume,
+            company_name=comp_name,
+            submit=args.submit,
+            profile_id=profile_id,
+            task_space_name=task_space,
+            job_id_db=db_job_id
+        )
+        guard.observe_result(res)
+        if res.get("success"):
+            comp = res.get("company") or comp_name or "LinkedIn Job"
+            new_status = "APPLIED" if res.get("submitted") else "STAGED_FOR_REVIEW"
+            record_apply_event(comp, res.get("url") or args.url, new_status, res.get("submitted", False), args.resume or "", job_id=db_job_id or "")
+            if db_job_id:
+                up_details = {"notes": f"[LinkedIn Easy Apply] {'Submitted' if res.get('submitted') else 'Staged in ego-browser'}. TaskSpace: {res.get('task_space')}"}
+                if res.get("submitted"):
+                    up_details["applied_at"] = datetime.now().isoformat()
+                update_job_status(db_job_id, new_status, up_details, refresh_summary=True)
             if res.get("submitted"):
-                up_details["applied_at"] = datetime.now().isoformat()
-            update_job_status(db_job_id, new_status, up_details, refresh_summary=True)
-        if res.get("submitted"):
-            print(f"\n[+] LinkedIn Easy Apply application for {comp} successfully SUBMITTED!")
+                print(f"\n[+] LinkedIn Easy Apply application for {comp} successfully SUBMITTED!")
+            else:
+                print(f"\n[+] LinkedIn Easy Apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
+                print(f"    👉 EGO-BROWSER TAB: TaskSpace '{res.get('task_space')}' ({profile_id})")
+                print(f"    👉 Screenshot: {res.get('screenshot')}")
         else:
-            print(f"\n[+] LinkedIn Easy Apply procedure for {comp} STAGED & VALIDATED successfully (0 errors)!")
-            print(f"    👉 EGO-BROWSER TAB: TaskSpace '{res.get('task_space')}' ({profile_id})")
-            print(f"    👉 Screenshot: {res.get('screenshot')}")
-    else:
-        print(f"\n[!] LinkedIn application staging encountered issues: {res.get('error')}")
+            print(f"\n[!] LinkedIn application staging encountered issues: {res.get('error')}")
 
 def cmd_apply_all_linkedin(args):
     from engine.batch_linkedin_applier import run_batch_linkedin_apply
@@ -433,8 +523,8 @@ def cmd_apply_all(args):
                     pass
 
             spec_tex, spec_name = select_specialization_resume(title, raw_jd)
-            print(f"[*] Compiling dedicated {spec_name} archetype for {comp}...")
-            clean_company = re.sub(r'[^a-zA-Z0-9]', '_', comp.lower())
+            print(f"[*] Compiling dedicated {spec_name} archetype for {company}...")
+            clean_company = re.sub(r'[^a-zA-Z0-9]', '_', company.lower())
             clean_job_id = re.sub(r'[^a-zA-Z0-9]', '_', str(job_id).lower())
             target_dir = RESUMES_GENERATED_DIR / f"{clean_company}_{clean_job_id}"
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -645,7 +735,8 @@ def cmd_delegate(args):
         submit=args.submit,
         archetype=job.get("archetype", "RESUME_1_AI_ENGINEER"),
         conversation_id=getattr(args, "convo", None),
-        sync=args.sync
+        sync=args.sync,
+        model=getattr(args, "model", None)
     )
     print("\n" + json.dumps(res, indent=2))
 
@@ -659,7 +750,7 @@ def cmd_delegate_batch(args):
         return
 
     print(f"[*] Found {len(jobs)} jobs with status '{args.status}'. Delegating up to {args.limit} to AGY worker agents...")
-    results = delegate_batch_jobs(jobs[:args.limit], submit=args.submit, max_concurrent=args.limit)
+    results = delegate_batch_jobs(jobs[:args.limit], submit=args.submit, max_concurrent=args.limit, model=getattr(args, "model", None))
     print("\n" + json.dumps(results, indent=2))
 
 def cmd_delegators(args):
@@ -747,6 +838,24 @@ def cmd_find_remote(args):
     max_resolve = getattr(args, "limit", 8)
     jobs = scrape_and_resolve_himalayas_matches(pages=pages, max_resolve=max_resolve)
     print(f"[+] Discovered and resolved {len(jobs)} fresh remote ATS jobs.")
+
+def cmd_find_datanerd(args):
+    init_db()
+    from engine.scraper import scrape_datanerd
+    from engine.db import insert_job, maybe_update_text_summary
+    title = getattr(args, "title", "Data Engineer")
+    country = getattr(args, "country", "India")
+    days = getattr(args, "days", 90)
+    limit = getattr(args, "limit", None)
+    print(f"[*] Scraping DataNerd.tech for '{title}' in '{country}' (last {days} days)...")
+    jobs = scrape_datanerd(title=title, country=country, days_back=days, limit=limit)
+    new_count = 0
+    for j in jobs:
+        if insert_job(j, refresh_summary=False):
+            new_count += 1
+    if new_count > 0:
+        maybe_update_text_summary(force=True)
+    print(f"[+] DataNerd scraping finished: {len(jobs)} retrieved, {new_count} new distinct jobs ingested into database.")
 
 def cmd_eval(args):
     init_db()
@@ -886,9 +995,10 @@ def cmd_apply(args):
         print("=" * 70)
         matched_job = None
         for j in get_all_jobs():
-            j_url = j.get("url") or ""
-            if (j_url and url and (j_url in url or url in j_url)) or (company and j.get("company", "").lower() == company.lower()):
-                matched_job = j
+            j_dict = dict(j)
+            j_url = j_dict.get("url") or ""
+            if (j_url and url and (j_url in url or url in j_url)) or (company and j_dict.get("company", "").lower() == company.lower()):
+                matched_job = j_dict
                 break
         res = dispatch_application(
             company=comp_name,
@@ -972,8 +1082,8 @@ def cmd_apply(args):
                     pass
 
             spec_tex, spec_name = select_specialization_resume(title, raw_jd)
-            print(f"[*] Compiling dedicated {spec_name} archetype for {comp}...")
-            clean_company = re.sub(r'[^a-zA-Z0-9]', '_', comp.lower())
+            print(f"[*] Compiling dedicated {spec_name} archetype for {company}...")
+            clean_company = re.sub(r'[^a-zA-Z0-9]', '_', company.lower())
             clean_job_id = re.sub(r'[^a-zA-Z0-9]', '_', str(job_id).lower())
             target_dir = RESUMES_GENERATED_DIR / f"{clean_company}_{clean_job_id}"
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -1187,6 +1297,12 @@ def main():
     find_remote_p.add_argument("--pages", type=int, default=2, help="Number of match pages to scan (default: 2)")
     find_remote_p.add_argument("--limit", type=int, default=8, help="Max fresh jobs to resolve destination ATS for (default: 8)")
 
+    find_datanerd_p = subparsers.add_parser("find-datanerd", help="Scrape live Data Engineer / tech jobs from datanerd.tech")
+    find_datanerd_p.add_argument("--title", default="Data Engineer", help="Job title filter (default: 'Data Engineer')")
+    find_datanerd_p.add_argument("--country", default="India", help="Country filter (default: 'India')")
+    find_datanerd_p.add_argument("--days", type=int, default=90, help="Max age in days for job postings (default: 90)")
+    find_datanerd_p.add_argument("--limit", type=int, default=None, help="Max jobs to ingest (default: all matching)")
+
     eval_p = subparsers.add_parser("eval", help="Evaluate discovered jobs with JEV & company tiers")
     eval_p.add_argument("--all", action="store_true", help="Re-evaluate all existing jobs in the database")
 
@@ -1241,6 +1357,8 @@ def main():
     gh_p = subparsers.add_parser("apply-greenhouse", help="Auto-apply to Greenhouse jobs (Scale AI, Databricks, Brex, Vercel, etc.)")
     gh_p.add_argument("--url", required=True, help="Greenhouse Job Board URL, Embed URL, or Databricks/Brex URL")
     gh_p.add_argument("--company", help="Optional company name")
+    gh_p.add_argument("--title", help="Optional job title")
+    gh_p.add_argument("--job-id", help="Optional database job ID")
     gh_p.add_argument("--resume", help="Optional tailored PDF resume path")
     gh_p.add_argument("--task-space", help="Optional ego-browser task space name (default: greenhouse_auto_apply)")
     gh_p.add_argument("--submit", action="store_true", help="Submit immediately (default: stage and validate)")
@@ -1358,6 +1476,25 @@ def main():
     accounts_p = subparsers.add_parser("list-accounts", help="List all registered accounts, services, and profile routing matrix")
     accounts_p.add_argument("--json", action="store_true", help="Output raw JSON format")
 
+    # AGY Quota & Multi-Account Vault Subparsers
+    quota_p = subparsers.add_parser("check-quota", help="Inspect real-time Gemini & Claude credits, 5h refill time, and weekly quota")
+    quota_p.add_argument("--all", action="store_true", help="Inspect quotas across all vaulted accounts in sequence and guarantee Remote Control account is restored")
+
+    vault_p = subparsers.add_parser("vault-account", help="Save currently active AGY CLI OAuth session token into persistent vault")
+    vault_p.add_argument("--label", "--name", dest="label", help="Optional friendly label (e.g. personal)")
+
+    subparsers.add_parser("list-agy-accounts", help="List all vaulted AGY CLI OAuth accounts and active indicator")
+
+    switch_agy_p = subparsers.add_parser("switch-agy-account", help="Seamlessly switch active AGY session to another vaulted account")
+    switch_agy_p.add_argument("--account", required=True, help="Target email or label")
+
+    qb_p = subparsers.add_parser("quota-batch", help="Deploy rate-limited batch apply for top scored big companies with quota protection")
+    qb_p.add_argument("--min-score", type=int, default=70, help="Minimum match score threshold (default: 70)")
+    qb_p.add_argument("--limit", type=int, default=5, help="Max concurrent jobs per batch (default: 5)")
+    qb_p.add_argument("--auto-sleep", action="store_true", help="Auto-sleep until refill time if credits low")
+    qb_p.add_argument("--submit", action="store_true", default=True, help="Auto-submit applications")
+    qb_p.add_argument("--continuous", action="store_true", help="Run continuously until all qualified jobs are applied")
+
     switch_p = subparsers.add_parser("switch-account", help="Open a target service or portal in its assigned browser profile")
     switch_p.add_argument("--service", required=True, help="Service name (e.g. mercor, chatgpt, dataannotation, turing, alignerr, linkedin, personal_gmail, college_gmail)")
     switch_p.add_argument("--url", help="Optional target URL to navigate to")
@@ -1402,11 +1539,13 @@ def main():
     del_p.add_argument("--submit", action="store_true", help="Submit directly (defaults to staging/review)")
     del_p.add_argument("--sync", action="store_true", help="Wait synchronously for AGY agent completion")
     del_p.add_argument("--convo", help="Optional conversation ID to resume")
+    del_p.add_argument("--model", help="Optional model override (e.g. claude-sonnet-4-6, gpt-oss-120b-medium)")
 
     del_batch_p = subparsers.add_parser("delegate-batch", help="Delegate batch of jobs to autonomous AGY worker agents")
     del_batch_p.add_argument("--status", default="EVALUATED", help="Job status to filter by (default: EVALUATED)")
     del_batch_p.add_argument("--limit", type=int, default=5, help="Max jobs to delegate (default: 5)")
     del_batch_p.add_argument("--submit", action="store_true", help="Submit directly (defaults to staging/review)")
+    del_batch_p.add_argument("--model", help="Optional model override (e.g. claude-sonnet-4-6, gpt-oss-120b-medium)")
 
     delegators_p = subparsers.add_parser("delegators", help="Manage and view remembered company-to-worker conversation mappings")
     delegators_p.add_argument("action", nargs="?", default="list", choices=["list", "get", "set", "sync"], help="Action: list, get, set, sync")
@@ -1439,6 +1578,8 @@ def main():
         cmd_find(args)
     elif args.command == "find-remote":
         cmd_find_remote(args)
+    elif args.command == "find-datanerd":
+        cmd_find_datanerd(args)
     elif args.command == "eval":
         cmd_eval(args)
     elif args.command == "tailor":
@@ -1510,6 +1651,67 @@ def main():
         from engine.chatgpt_consultant import prime_chatgpt_with_master_dossier
         res = prime_chatgpt_with_master_dossier(force=args.force, profile_id=args.profile)
         print(f"[+] Priming Result: {res}")
+    elif args.command == "check-quota":
+        from engine.quota_manager import check_quota, check_all_accounts_quota
+        if getattr(args, "all", False):
+            results = check_all_accounts_quota()
+            print(f"\n==========================================================================================")
+            print(f"                      ALL VAULTED ANTIGRAVITY ACCOUNTS QUOTA AUDIT")
+            print(f"==========================================================================================")
+            for r in results:
+                print(f"Account: {r['account']} (File: {r['file_name']})")
+                if not r["success"]:
+                    print(f"  • Quota check failed: {r.get('error') or 'quota unavailable'}")
+                    continue
+                print(f"  • Gemini 5-Hour Remaining:  {r['gemini_5h_pct']}% (Refill: {r['gemini_5h_refill']})")
+                print(f"  • Gemini Weekly Remaining:  {r['gemini_weekly_pct']}% (Resets: {r['gemini_weekly_reset']})")
+                print(f"  • Claude & GPT 5-Hour:      {r['claude_5h_pct']}%")
+                print(f"  • Deployment Ready:         {'✅ YES' if r['can_deploy'] else '❌ LOW / DEPLETED'}")
+                print(f"------------------------------------------------------------------------------------------")
+        else:
+            q = check_quota()
+            print(f"\n=======================================================")
+            print(f"  ACTIVE ACCOUNT QUOTA: {q.get('account')}")
+            print(f"=======================================================")
+            print(f"- Gemini 5-Hour Limit Remaining:  {q.get('gemini_5h_pct')}%")
+            print(f"- Gemini 5-Hour Refill Time:      {q.get('gemini_5h_local_refill_str', q.get('gemini_5h_reset_str'))} (in {q.get('gemini_5h_seconds_to_refill', 0)//60}m {q.get('gemini_5h_seconds_to_refill', 0)%60}s)")
+            print(f"- Gemini Weekly Limit Remaining:  {q.get('gemini_weekly_pct')}%")
+            print(f"- Claude & GPT 5-Hour Limit:      {q.get('claude_5h_pct')}%")
+            print(f"- Ready to Deploy Workers:        {'✅ YES' if q.get('can_deploy') else '❌ NO (Credits Low)'}")
+            print(f"=======================================================\n")
+    elif args.command == "vault-account":
+        from engine.quota_manager import vault_current_account
+        res = vault_current_account(args.label)
+        print(f"[+] Vault Result: {json.dumps(res, indent=2)}")
+    elif args.command == "list-agy-accounts":
+        from engine.quota_manager import list_vaulted_accounts
+        accs = list_vaulted_accounts()
+        print(f"\n=======================================================")
+        print(f"  VAULTED ANTIGRAVITY ACCOUNTS ({len(accs)} total)")
+        print(f"=======================================================")
+        for a in accs:
+            mark = "👉 [ACTIVE]" if a["is_active"] else "   [SAVED] "
+            print(f"{mark} {a['email']} (File: {a['file_name']})")
+        print(f"=======================================================\n")
+    elif args.command == "switch-agy-account":
+        from engine.quota_manager import switch_to_account
+        res = switch_to_account(args.account)
+        print(f"[+] Switch Result: {json.dumps(res, indent=2)}")
+    elif args.command == "quota-batch":
+        from engine.quota_aware_runner import run_quota_aware_cycle, run_continuous_applier
+        if getattr(args, "continuous", False):
+            run_continuous_applier(
+                min_score=args.min_score,
+                batch_size=args.limit,
+                submit=args.submit
+            )
+        else:
+            run_quota_aware_cycle(
+                min_score=args.min_score,
+                max_jobs=args.limit,
+                submit=args.submit,
+                auto_sleep_until_refill=args.auto_sleep
+            )
 
 if __name__ == "__main__":
     main()

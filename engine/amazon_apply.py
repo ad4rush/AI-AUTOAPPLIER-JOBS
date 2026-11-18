@@ -168,6 +168,7 @@ for (let step = 0; step < 20; step++) {
 
   if (status.hasSubmit) {
     if (__SUBMIT__) {
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       console.log("[Amazon-Apply] Clicking Submit application...");
       await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll("button, a.btn")).find(b => {

@@ -47,7 +47,6 @@ data/jobs.db-shm
 data/jobs_found_and_applied.txt
 data/*.txt
 data/*.json
-!data/remote_agent_handoff.json
 !data/target_websites.json
 data/company_apply_procedures/
 data/generated_scripts/
@@ -60,6 +59,7 @@ resumes_generated/
 
 # Scraper raw HTML / JD dumps
 data/raw_jobs/
+data/cache/
 
 # Private personal profile, master resumes, & Overleaf source
 master_resume/

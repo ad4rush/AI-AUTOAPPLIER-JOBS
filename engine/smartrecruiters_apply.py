@@ -28,6 +28,10 @@ from engine.config import (
     CANDIDATE_EMAIL,
     CANDIDATE_PHONE_PLAIN,
     CANDIDATE_CITY,
+    CANDIDATE_LINKEDIN,
+    CANDIDATE_GITHUB,
+    CANDIDATE_CURRENT_COMPANY,
+    ANS_COLLEGE,
     assert_real_candidate_profile,
     verify_script_zero_placeholders
 )
@@ -124,10 +128,10 @@ await page.evaluate(() => {{
   setVal("confirm-email-input", "{CANDIDATE_EMAIL}");
   setVal("spl-form-element_10", "{CANDIDATE_CITY}, India");
   setVal("spl-form-element_5", "{CANDIDATE_PHONE_PLAIN}");
-  setVal("linkedin-input", "https://www.linkedin.com/in/ad4rush/");
-  setVal("website-input", "https://github.com/ad4rush");
+  setVal("linkedin-input", "{CANDIDATE_LINKEDIN}");
+  setVal("website-input", "{CANDIDATE_GITHUB}");
 
-  const msg = "Dear Hiring Team,\\n\\nI am excited to apply for this role. As an AI & Systems Engineer with strong experience architecting low-latency microservices, REST/WebSocket APIs, distributed data pipelines (Spark, Kafka CDC, S3 Lakehouse), and sub-second LLM agent tooling, I have driven massive production scale and efficiency at TBO.com. I would love to bring my engineering rigor, full-stack backend skills, and distributed systems passion to your engineering team.\\n\\nBest regards,\\n{CANDIDATE_NAME}";
+  const msg = "Dear Hiring Team,\\n\\nI am excited to apply for this role. As an AI & Systems Engineer with strong experience architecting low-latency microservices, REST/WebSocket APIs, distributed data pipelines (Spark, Kafka CDC, S3 Lakehouse), and sub-second LLM agent tooling, I have driven massive production scale and efficiency at {CANDIDATE_CURRENT_COMPANY}. I would love to bring my engineering rigor, backend skills, and distributed systems passion to your engineering team.\\n\\nBest regards,\\n{CANDIDATE_NAME}";
   setVal("hiring-manager-message-input", msg);
 
   // Consent checkbox
@@ -157,7 +161,8 @@ await page.evaluate(() => {{
   const titleOpt = all.find(e => e.tagName === "SPL-SELECT-OPTION" && e.innerText.includes("Research Assistant"));
   if (titleOpt) titleOpt.click();
 
-  const compOpt = all.find(e => e.tagName === "SPL-SELECT-OPTION" && e.innerText.includes("IIIT-Delhi"));
+  const collegeName = "{ANS_COLLEGE}";
+  const compOpt = all.find(e => e.tagName === "SPL-SELECT-OPTION" && (collegeName && e.innerText.includes(collegeName)));
   if (compOpt) compOpt.click();
 
   // Institution autocomplete option
@@ -188,6 +193,7 @@ let submitted = false;
 let confirmationText = "";
 
 if ({str(submit).lower()}) {{
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
   console.log("[SmartRecruiters] Submitting application...");
   try {{
     await page.click("loc=css:spl-button[type='primary']", {{ label: "Submit application" }});

@@ -270,46 +270,36 @@ if (needsLogin) {{
 }}
 
 // Locate prompt composer and insert text cleanly
-const promptFound = await page.evaluate((text) => {{
-  const el = document.querySelector("div[contenteditable='true'].ProseMirror, #prompt-textarea, [contenteditable='true'], textarea");
-  if (el) {{
-    el.focus();
-    const formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\\n/g, "<br>");
-    el.innerHTML = "<p>" + formatted + "</p>";
-    el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+const promptText = {escaped_prompt};
+let composer = await page.$("div[contenteditable='true'].ProseMirror, #prompt-textarea, [contenteditable='true'], textarea");
+if (!composer) {{
+  console.log("[ChatGPT] Composer not found directly; navigating to https://chatgpt.com...");
+  await page.goto("https://chatgpt.com", {{ waitUntil: "domcontentloaded", timeout: 30000 }});
+  await new Promise(r => setTimeout(r, 4000));
+  composer = await page.$("div[contenteditable='true'].ProseMirror, #prompt-textarea, [contenteditable='true'], textarea");
+}}
+
+if (composer) {{
+  await composer.focus();
+  await page.keyboard.press("Meta+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.insertText(promptText);
+  await new Promise(r => setTimeout(r, 600));
+}}
+
+// Click Send or press Enter
+const sendClicked = await page.evaluate(() => {{
+  const btn = document.querySelector("button[aria-label='Send'], button[aria-label='Send prompt'], button.bg-composer-primary, button[data-testid='send-button']");
+  if (btn && !btn.disabled && !btn.className.includes("opacity-50")) {{
+    btn.click();
     return true;
   }}
   return false;
-}}, {escaped_prompt});
-
-if (!promptFound) {{
-  console.log("[ChatGPT] Composer not found directly; reloading home page...");
-  await page.goto("https://chatgpt.com", {{ waitUntil: "domcontentloaded", timeout: 30000 }});
-  await new Promise(r => setTimeout(r, 4000));
-  await page.evaluate((text) => {{
-    const el = document.querySelector("div[contenteditable='true'].ProseMirror, #prompt-textarea, [contenteditable='true'], textarea");
-    if (el) {{
-      el.focus();
-      const formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\\n/g, "<br>");
-      el.innerHTML = "<p>" + formatted + "</p>";
-      el.dispatchEvent(new Event("input", {{ bubbles: true }}));
-    }}
-  }}, {escaped_prompt});
-}}
-
-await new Promise(r => setTimeout(r, 500));
-
-// Press Enter to submit
-await page.keyboard.press("Enter");
-await new Promise(r => setTimeout(r, 1000));
-
-// Fallback click on Send button if still present and active
-await page.evaluate(() => {{
-  const btn = document.querySelector("button[aria-label='Send'], button[aria-label='Send prompt'], button.bg-composer-primary, button[data-testid='send-button']");
-  if (btn && !btn.className.includes("opacity-50")) {{
-    btn.click();
-  }}
 }});
+
+if (!sendClicked) {{
+  await page.keyboard.press("Enter");
+}}
 
 console.log("[ChatGPT] Prompt dispatched. Waiting for response...");
 
@@ -331,7 +321,7 @@ for (let i = 0; i < 40; i++) {{
     const stopBtn = document.querySelector("button[aria-label*='Stop' i], button[data-testid='stop-button']");
     const main = document.querySelector("main") || document.body;
     let text = "";
-    const assistantEls = Array.from(document.querySelectorAll("[data-message-author-role='assistant'], article:has([data-message-author-role='assistant'])"));
+    const assistantEls = Array.from(document.querySelectorAll("[data-markdown-text-style='assistant-message'], [data-dil-response], [data-message-author-role='assistant'], article:has([data-message-author-role='assistant'])"));
     if (assistantEls.length) {{
       text = assistantEls[assistantEls.length - 1].innerText;
     }} else {{
@@ -610,6 +600,7 @@ AVAILABLE PRE-COMPILED GOLD-STANDARD MASTER RESUMES (Strictly 1-page):
 - RESUME_2_DATA_ENGINEER: Data Platforms, Apache Spark, AWS Glue, Kafka CDC, Hudi, Lakehouse, Athena.
 - RESUME_3_SWE_BACKEND: Backend SWE, Distributed Systems, FastAPI, Go, Microservices, Docker, K8s.
 - RESUME_4_GENERAL_ENGINEERING: General SDE, Algorithms, CS fundamentals, Systems.
+- RESUME_5_ML_ENGINEER: Machine Learning, Computer Vision (OpenCV, I3D, Video Anomaly), Deep Learning, Ensemble ML (XGBoost, CatBoost, LightGBM, Churn, GRiD challenge), Scikit-Learn, PyTorch, Predictive Modeling.
 
 TARGET JOB DETAILS:
 - Company: {company}
@@ -636,7 +627,7 @@ STRICT EVALUATION MANDATES:
      * High-visibility frontier AI startups with top-tier tier-1 backing.
    - For standard Tier-2 companies, regular startups, or standard contract rates (<$75/hr), set custom_resume_required: false. They will use the matching master specialization resume directly.
 3. "recommended_master_resume":
-   - Exactly one of: "RESUME_1_AI_ENGINEER", "RESUME_2_DATA_ENGINEER", "RESUME_3_SWE_BACKEND", "RESUME_4_GENERAL_ENGINEERING".
+   - Exactly one of: "RESUME_1_AI_ENGINEER", "RESUME_2_DATA_ENGINEER", "RESUME_3_SWE_BACKEND", "RESUME_4_GENERAL_ENGINEERING", "RESUME_5_ML_ENGINEER". Dynamically match the job opening (e.g. RESUME_5_ML_ENGINEER for ML/CV, RESUME_2_DATA_ENGINEER for Data, RESUME_3_SWE_BACKEND for Backend, RESUME_1_AI_ENGINEER for GenAI/LLM/Agents).
 
 OUTPUT FORMAT:
 Return STRICTLY a single valid JSON object, with no markdown code fences and no conversational filler:
@@ -692,10 +683,60 @@ Return STRICTLY a single valid JSON object, with no markdown code fences and no 
 
 
 def _fallback_job_evaluation(company: str, title: str, jd_text: str, salary_info: str = "") -> Dict[str, Any]:
-    """Rule-based fallback if ChatGPT is unreachable."""
+    """Rule-based fallback if ChatGPT is unreachable with strict experience and seniority gates."""
     t_low = title.lower()
     jd_low = (jd_text or "").lower()
     co_low = company.lower()
+
+    # 1. Seniority Check from Title
+    senior_keywords = [
+        "senior", "sr.", "sr ", "staff", "principal", "lead", "architect",
+        "manager", "director", "head of", "head,", "vp", "vice president",
+        "tlm", "tech lead", "distinguished", "fellow", " iv", "- iv", "-iv",
+        " iii", "- iii", "-iii", "level 2", "level 3", "l5", "l6", "l7"
+    ]
+    early_career_keywords = [
+        "junior", "early career", "new grad", "university grad", "associate",
+        "entry level", "entry-level", "graduate", "software engineer 1",
+        "software engineer i", "ai engineer 1", "ai engineer i", "swe 1",
+        "swe i", "sde 1", "sde i", "l1", "mts 1", "mts i", "intern",
+        "internship", "research intern", "applied scientist 1", "applied scientist i"
+    ]
+    is_early = any(k in t_low for k in early_career_keywords)
+    is_senior = any(re.search(r"\b" + re.escape(k) + r"\b", t_low) for k in senior_keywords)
+
+    if is_senior and not is_early:
+        return {
+            "should_apply": False,
+            "fit_score": 15,
+            "is_worthy_of_custom_resume": False,
+            "custom_resume_required": False,
+            "recommended_master_resume": "RESUME_3_SWE_BACKEND",
+            "company_tier_and_reputation": "Senior Role Excluded",
+            "compensation_estimate": salary_info or "N/A",
+            "reasoning": f"Senior/Staff title '{title}' strictly exceeds candidate early-career profile (0-2 yrs target).",
+            "key_matches": [],
+            "potential_concerns": ["Seniority mismatch"],
+            "tailoring_focus": ""
+        }
+
+    # 2. Experience Requirement Check from JD
+    from engine.evaluator import parse_experience_requirements
+    min_years, max_years, exp_label = parse_experience_requirements(jd_low)
+    if min_years > 2 and not is_early:
+        return {
+            "should_apply": False,
+            "fit_score": 15,
+            "is_worthy_of_custom_resume": False,
+            "custom_resume_required": False,
+            "recommended_master_resume": "RESUME_3_SWE_BACKEND",
+            "company_tier_and_reputation": "High Experience Required",
+            "compensation_estimate": salary_info or "N/A",
+            "reasoning": f"Job explicitly requires {min_years}+ years of experience ({exp_label}). Exceeds candidate 0-2 yr profile.",
+            "key_matches": [],
+            "potential_concerns": [f"Requires {exp_label}"],
+            "tailoring_focus": ""
+        }
 
     # Tier 1 companies
     tier1_list = ["microsoft", "openai", "stripe", "scale ai", "scaleai", "databricks", "barclays", "google", "anthropic", "apple", "meta", "amazon"]
@@ -706,15 +747,16 @@ def _fallback_job_evaluation(company: str, title: str, jd_text: str, salary_info
 
     custom_required = is_tier1 or has_high_pay
 
-    is_ai = any(k in t_low or k in jd_low for k in ["ai", "llm", "agent", "prompt", "machine learning", "ml"])
-    is_data = any(k in t_low or k in jd_low for k in ["data engineer", "spark", "lakehouse", "etl", "glue"])
-
-    if is_ai:
-        archetype = "RESUME_1_AI_ENGINEER"
-    elif is_data:
-        archetype = "RESUME_2_DATA_ENGINEER"
-    else:
-        archetype = "RESUME_3_SWE_BACKEND"
+    from engine.resume_router import classify_master_archetype
+    arch_type = classify_master_archetype(title, jd_text or "")
+    archetype_map = {
+        "AI_ENGINEER": "RESUME_1_AI_ENGINEER",
+        "DATA_ENGINEER": "RESUME_2_DATA_ENGINEER",
+        "SWE_BACKEND": "RESUME_3_SWE_BACKEND",
+        "GENERAL_ENGINEERING": "RESUME_4_GENERAL_ENGINEERING",
+        "ML_ENGINEER": "RESUME_5_ML_ENGINEER",
+    }
+    archetype = archetype_map.get(arch_type, "RESUME_3_SWE_BACKEND")
 
     return {
         "should_apply": True,
@@ -724,7 +766,7 @@ def _fallback_job_evaluation(company: str, title: str, jd_text: str, salary_info
         "recommended_master_resume": archetype,
         "company_tier_and_reputation": "Tier-1 / High-Paying" if is_tier1 else "Tier-2 / Standard",
         "compensation_estimate": salary_info or "Standard market rate",
-        "reasoning": f"Role matches candidate technical profile. Custom resume {'required (Tier-1 / high rate)' if custom_required else 'not needed (use master resume)'}.",
+        "reasoning": f"Role matches candidate technical profile and meets early-career criteria (0-2 yrs). Custom resume {'required (Tier-1 / high rate)' if custom_required else 'not needed (use master resume)'}.",
         "key_matches": ["Python", "Machine Learning", "Distributed Systems"],
         "potential_concerns": [],
         "tailoring_focus": f"Highlight core production experience at {CANDIDATE_CURRENT_COMPANY}"
@@ -787,7 +829,7 @@ Return ONLY a JSON array with one object per job:
     "confidence": 92,
     "is_worthy_of_custom_resume": false,
     "custom_resume_required": false,
-    "recommended_master_resume": "RESUME_1_AI_ENGINEER",
+    "recommended_master_resume": "<one of: RESUME_1_AI_ENGINEER | RESUME_2_DATA_ENGINEER | RESUME_3_SWE_BACKEND | RESUME_5_ML_ENGINEER based on job title & stack>",
     "company_reputation": "Tier-2 / Standard",
     "compensation": "...",
     "reason": "..."

@@ -148,7 +148,7 @@ const { execSync } = require('child_process');
 
   // Static Analysis Textarea
   console.log("[*] Filling static analysis textarea...");
-  const staticAnswer = `At TBO.com and in production systems engineering, my work across parsers, static analysis, and security scanning includes:
+  const staticAnswer = `In production systems engineering and security platform work, my experience across parsers, static analysis, and security scanning includes:
 
 1. Parsers & AST Validation:
 - Ontology-Grounded Text-to-SQL Agent: Engineered an enterprise schema-aware SQL validator on Amazon Athena. The system parses and validates SQL Abstract Syntax Trees (ASTs) against an enterprise travel domain ontology and catalog schemas prior to execution, preventing semantic hallucinations and unauthorized cross-table joins while cutting BI workload by 35%.

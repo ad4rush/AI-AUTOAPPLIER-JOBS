@@ -124,14 +124,14 @@ const emails = await page.evaluate((maxCount) => {{
   return rows.slice(0, maxCount).map((row, idx) => {{
     const isUnread = row.classList.contains("zE");
     const senderElem = row.querySelector(".yX, .zF, .bA4 span");
-    let sender = senderElem ? senderElem.innerText.trim() : (row.querySelector(".yP, .zF")?.innerText.trim() || "Unknown");
+    let sender = senderElem ? (senderElem.textContent || senderElem.innerText || "").trim() : ((row.querySelector(".yP, .zF")?.textContent || row.querySelector(".yP, .zF")?.innerText || "Unknown").trim());
     sender = sender.split("\\n")[0].trim();
     const subjectElem = row.querySelector(".bog, span[data-thread-id]");
-    const subject = subjectElem ? subjectElem.innerText.trim() : "No Subject";
+    const subject = subjectElem ? (subjectElem.textContent || subjectElem.innerText || "").trim() : "No Subject";
     const snippetElem = row.querySelector(".y2");
-    let snippet = snippetElem ? snippetElem.innerText.replace(/^[\\s\\-\\:\\u00A0]+/, "").trim() : "";
+    let snippet = snippetElem ? (snippetElem.textContent || snippetElem.innerText || "").replace(/^[\\s\\-\\:\\u00A0]+/, "").trim() : "";
     const dateElem = row.querySelector(".xW span, .xW");
-    const date = dateElem ? (dateElem.getAttribute("title") || dateElem.innerText.trim()) : "";
+    const date = dateElem ? (dateElem.getAttribute("title") || dateElem.textContent || dateElem.innerText || "").trim() : "";
     return {{
       index: idx + 1,
       isUnread,

@@ -3,7 +3,7 @@
 This file defines the core operating instructions and behavioral protocols for any autonomous AI agent (including AGY CLI agents run via `agy --dangerously-skip-permissions` or subagents) executing inside this repository.
 
 ## 1. Operating Environment & Workspaces
-- **Project Directory:** `/Users/adarsh/job_finder_applier`
+- **Project Directory:** `~/job_finder_applier`
 - **CLI Commands:** Use `/usr/bin/python3 cli.py <command>` or `python3 cli.py <command>`
 - **Database:** `data/jobs.db` (SQLite)
 - **Active Browser:** ego-browser (ego-lite) running on macOS
@@ -92,3 +92,22 @@ Every time you apply or encounter a new portal:
 - When a new role for a company arrives in the future, check prior dispatches:
   `python3 cli.py list-dispatches --company "<company>"`
 - Reopen prior conversation threads using `agy --conversation <conversation_id>` so previous company context is preserved.
+
+## 9. Duplicate Application Guard & Submit Tracking Protocol (STRICT)
+- **Zero Double-Application Mandate:** The system strictly prevents applying to or submitting the same job twice across all entry points (daemon queue, pipeline cycles, CLI apply commands, LinkedIn batch runner, AGY workers, subagents).
+- **Triple Key Identity Resolution:** Every application is resolved to:
+  1. `url_key`: Normalized URL with tracking/UTM parameters stripped.
+  2. `ats_key`: ATS-specific job posting token (e.g. `gh:4336266009`, `ashby:uuid`, `li:jobid`, `amzn:id`, `msft:pid`).
+  3. `ct_key`: Normalized company slug + title slug (active window: 120 days).
+- **Atomic Concurrency Protection:** All apply attempts acquire an exclusive claim in SQLite `apply_claims` under `BEGIN IMMEDIATE`. Never bypass this check.
+- **Mandatory Submit Marker Requirement:** Every browser automation script (Node.js in ego-browser, Playwright, or Python) MUST emit `[[SUBMIT_CLICK_ATTEMPT]]` immediately prior to executing the final submit click:
+  ```javascript
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
+  await page.click("button[type='submit']");
+  ```
+  If staging or not submitting, emit:
+  ```javascript
+  console.log("[[SUBMIT_CLICK_NONE]]");
+  ```
+  The runtime interceptor in `engine/dedup.py` watches subprocess stdout for this marker. Once observed, the claim transitions permanently to `SUBMITTED`, locking the posting so no fallback engine, secondary runner, or retry worker can ever click submit a second time.
+- Direct CLI applications and workers MUST wrap apply logic in `with ApplicationGuard(...) as guard:` or use `dispatch_application(...)`.

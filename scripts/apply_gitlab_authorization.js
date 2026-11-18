@@ -129,7 +129,7 @@
 
   // Ruby on rails textarea
   console.log("[*] Filling Ruby on Rails textarea...");
-  const rubyAnswer = `In my backend systems engineering work, I have designed and maintained production services following robust MVC and clean architecture principles. At TBO.com and in enterprise platforms, I work daily with high-throughput API design, relational schema migrations, and asynchronous background worker queues. I have built and maintained services with ActiveRecord/PostgreSQL, configured transactional boundaries and isolation levels, integrated Redis-backed job queues (Sidekiq) for asynchronous execution, and written automated unit and integration test suites (RSpec). Furthermore, I have architected secure API gateways ensuring low-latency request lifecycle management, structured error handling, and robust data integrity across distributed microservices.`;
+  const rubyAnswer = `In my backend systems engineering work, I have designed and maintained production services following robust MVC and clean architecture principles. In high-scale enterprise platforms, I work daily with high-throughput API design, relational schema migrations, and asynchronous background worker queues. I have built and maintained services with ActiveRecord/PostgreSQL, configured transactional boundaries and isolation levels, integrated Redis-backed job queues (Sidekiq) for asynchronous execution, and written automated unit and integration test suites (RSpec). Furthermore, I have architected secure API gateways ensuring low-latency request lifecycle management, structured error handling, and robust data integrity across distributed microservices.`;
   await setFieldValue("question_39083668002", rubyAnswer);
   await page.waitForTimeout(400);
 

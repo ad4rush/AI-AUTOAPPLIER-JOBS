@@ -1,8 +1,15 @@
 (async () => {
-  const resumePath = process.argv[2] || './master_resumes/RESUME_1_AI_ENGINEER.pdf';
+  const resumePath = process.env.JOB_FINDER_RESUME_PATH;
 
   const task = await taskSpace('rw_live_score_' + Date.now(), { profileId: 'Profile 1' });
   const page = task.page('p1');
+
+  try {
+    page.on('dialog', async d => {
+      console.log('[* Dialog]:', d.message());
+      await d.dismiss();
+    });
+  } catch(e) {}
 
   console.log('[*] Navigating to https://resumeworded.com/score.php ...');
   await page.goto('https://resumeworded.com/score.php', { waitUntil: 'domcontentloaded', timeout: 35000 });
@@ -14,16 +21,15 @@
   // Attach file
   console.log('[*] Attaching file:', resumePath);
   try {
-    await page.setInputFiles('input[type="file"], input.dz-hidden-input', [resumePath]);
+    await page.setInputFiles('input[type="file"]', [resumePath]);
     console.log('[✓] setInputFiles succeeded!');
   } catch (err) {
     console.log('[!] setInputFiles error:', err.message);
-    console.log('[*] Trying click on upload dropzone with waitForFileChooser...');
-    const chooserPromise = page.waitForFileChooser({ timeout: 10000 });
-    await page.click('.dropzone, [class*="upload"]');
-    const chooser = await chooserPromise;
-    await chooser.setFiles(resumePath);
-    console.log('[✓] FileChooser succeeded!');
+    const fileInput = await page.$('input[type="file"]');
+    if (fileInput) {
+      await fileInput.setInputFiles([resumePath]);
+      console.log('[✓] fileInput.setInputFiles succeeded!');
+    }
   }
 
   console.log('[*] File attached. Waiting for analysis / results page...');

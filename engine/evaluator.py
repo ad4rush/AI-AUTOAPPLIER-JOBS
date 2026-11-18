@@ -222,29 +222,41 @@ def parse_experience_requirements(jd_lower: str) -> Tuple[int, int, str]:
     """
     Robustly extracts minimum and maximum years of experience from job descriptions.
     """
-    # 1. Range matching: e.g. 3-5 years, 0 to 2 years, 1–3 years
-    range_match = re.search(r"(\d+)\s*(?:[-–—to]+)\s*(\d+)\+?\s*years?", jd_lower)
+    # 1. Range matching: e.g. 3-5 years, 0 to 2 years, 1–3 years, 3-5 yrs, 2-4 yoe
+    range_match = re.search(r"(\d+)\s*(?:[-–—to]+)\s*(\d+)\+?\s*(?:years?|yrs?|yoe)", jd_lower)
     if range_match:
         min_y = int(range_match.group(1))
         max_y = int(range_match.group(2))
         return min_y, max_y, f"{min_y}–{max_y} years"
 
-    # 2. Minimum or at least: e.g. minimum 3 years, at least 2 years
-    min_match = re.search(r"(?:minimum|at\s+least)\s+(?:of\s+)?(\d+)\+?\s*years?", jd_lower)
+    # 2. Minimum or at least: e.g. minimum 3 years, at least 2 years, min 5 yrs
+    min_match = re.search(r"(?:minimum|at\s+least|min\.?)\s+(?:of\s+)?(\d+)\+?\s*(?:years?|yrs?|yoe)", jd_lower)
     if min_match:
         y = int(min_match.group(1))
         return y, y, f"{y}+ years"
 
-    # 3. Single pattern with arbitrary qualifier: e.g. 3+ years of hands-on engineering experience
-    qualifier_match = re.search(r"(\d+)\+?\s*years?(?:\s+of)?(?:\s+[\w\s-]{1,35})?\s+(?:experience|work\s+experience)", jd_lower)
+    # 3. Explicit prefix: e.g. experience: 5+ years, experience required: 3 years
+    exp_prefix_match = re.search(r"(?:experience\s*(?:required)?|requirements?)\s*[:\-]\s*(\d+)\+?\s*(?:years?|yrs?|yoe)", jd_lower)
+    if exp_prefix_match:
+        y = int(exp_prefix_match.group(1))
+        return y, y, f"{y}+ years"
+
+    # 4. Single pattern with arbitrary qualifier: e.g. 3+ years of hands-on engineering experience
+    qualifier_match = re.search(r"(\d+)\+?\s*(?:years?|yrs?|yoe)(?:\s+of)?(?:\s+[\w\s-]{1,35})?\s+(?:experience|work\s+experience)", jd_lower)
     if qualifier_match:
         y = int(qualifier_match.group(1))
         return y, y, f"{y}+ years"
 
-    # 4. Action phrase: e.g. 3+ years building production systems
-    action_match = re.search(r"(\d+)\+?\s*years?\s+(?:in|building|designing|developing|working)", jd_lower)
+    # 5. Action phrase: e.g. 3+ years building production systems
+    action_match = re.search(r"(\d+)\+?\s*(?:years?|yrs?|yoe)\s+(?:in|building|designing|developing|working)", jd_lower)
     if action_match:
         y = int(action_match.group(1))
+        return y, y, f"{y}+ years"
+
+    # 6. Fallback stand-alone digit with years/yrs
+    standalone_match = re.search(r"\b([3-9]|1\d)\+?\s*(?:years?|yrs?|yoe)\b", jd_lower)
+    if standalone_match:
+        y = int(standalone_match.group(1))
         return y, y, f"{y}+ years"
 
     return 0, 1, "0–1 years (Not specified / Open)"
@@ -444,13 +456,27 @@ def evaluate_job_match(company: str, title: str, jd: str, location: str = "") ->
         elif is_tech_role and company_tier in ("TIER_1", "TIER_2"):
             computed_score = 55
             exp_status = f"TECH_ROLE (Stub JD — {exp_label})"
+        elif is_tech_role:
+            computed_score = 50
+            exp_status = f"STANDARD_TECH_ROLE (Stub JD — {exp_label})"
     elif not unique_matched_skills:
         # If full JD is provided and has 0 tech skills, cap score at 15
         computed_score = min(computed_score, 15)
 
-    # If role requires 3+ years and not early career, cap score at 20
+    # If role requires 3+ years and not early career, cap score at 15 and strictly exclude
     if min_years >= 3 and not is_early_career_title:
-        computed_score = min(computed_score, 20)
+        return {
+            "company_tier": company_tier,
+            "match_score": 15,
+            "fit_verdict": "HIGH_EXPERIENCE_EXCLUDED",
+            "priority_level": "SKIP",
+            "experience_status": f"HIGH_EXP_MISMATCH ({exp_label})",
+            "primary_domain": "High Experience Required",
+            "matched_skills": [],
+            "recommended_highlights": [],
+            "years_req": min_years,
+            "exp_label": exp_label
+        }
 
     final_score = max(min(computed_score, 98), 5)
 

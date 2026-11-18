@@ -74,7 +74,7 @@ def apply_to_ashby_job(
             from engine.db import get_db_connection
             conn = get_db_connection()
             c = conn.cursor()
-            c.execute("SELECT title, company, raw_jd_path, tailored_resume_dir FROM jobs WHERE job_id = ? OR url LIKE ?", 
+            c.execute("SELECT title, company, raw_jd_path, tailored_resume_dir FROM jobs WHERE job_id = ? OR url LIKE ?",
                       (job_id_db or f"%{clean_url}%", f"%{clean_url}%"))
             row = c.fetchone()
             conn.close()
@@ -226,15 +226,15 @@ const inspectionResult = await page.evaluate(() => {{
 
   for (const el of inputs) {{
     if (el.type === "file" || el.id === "_systemfield_name" || el.id === "_systemfield_email" || el.type === "tel") continue;
-    
+
     const label = getLabel(el).toLowerCase();
-    
+
     // GitHub
     if (label.includes("github") || label.includes("git repo")) {{
       window.__setReactVal(el, "{CANDIDATE_GITHUB}");
       continue;
     }}
-    
+
     // LinkedIn
     if (label.includes("linkedin")) {{
       window.__setReactVal(el, "{CANDIDATE_LINKEDIN}");
@@ -276,21 +276,54 @@ const inspectionResult = await page.evaluate(() => {{
     }}
   }}
 
-  // Handle Radio buttons (How did you hear, Work Auth, Sponsorship)
+  // Handle Radio buttons (How did you hear, Work Auth, Sponsorship, EEOC)
   const radios = Array.from(document.querySelectorAll("input[type='radio']"));
   for (const r of radios) {{
-    const rLabel = (r.closest("label") || {{}}).innerText || "";
+    let rLabel = (r.closest("label") || {{}}).innerText || "";
+    if (!rLabel && r.id) {{
+      const lbl = document.querySelector(`label[for="${{r.id}}"]`);
+      if (lbl) rLabel = lbl.innerText;
+    }}
+    if (!rLabel && r.parentElement) {{
+      rLabel = r.parentElement.innerText;
+    }}
     const lower = rLabel.toLowerCase().trim();
-    if (lower === "linkedin" || lower === "yes" || lower === "i'm a user") {{
+    const parentContainer = r.closest("fieldset, [class*='field'], [class*='container'], [class*='row'], div") || r.parentElement;
+    const qText = ((parentContainer ? parentContainer.innerText : "") || "").toLowerCase();
+
+    const isSponsorshipQ = qText.includes("sponsorship") || qText.includes("require visa") || qText.includes("need a work visa");
+    const isSponsorshipNo = lower.includes("no, i will not need sponsorship") || (isSponsorshipQ && lower.startsWith("no"));
+    const isEEOCGender = (r.name.includes("eeoc_gender") || qText.includes("gender")) && lower === "male";
+    const isEEOCRace = (r.name.includes("eeoc_race") || qText.includes("race")) && lower.includes("asian");
+    const isEEOCVet = (r.name.includes("eeoc_veteran") || qText.includes("veteran") || lower.includes("veteran")) && (lower.includes("not a protected veteran") || lower.includes("decline"));
+    const isGenericYes = lower === "yes" && !isSponsorshipQ;
+
+    if (lower === "linkedin" || lower === "i'm a user" || isGenericYes || isSponsorshipNo || isEEOCGender || isEEOCRace || isEEOCVet) {{
+      r.click();
       r.checked = true;
       r.dispatchEvent(new Event("change", {{ bubbles: true }}));
       r.dispatchEvent(new Event("input", {{ bubbles: true }}));
     }}
   }}
 
-  // Handle Ashby Custom Yes/No Button components
+  // Handle Ashby Custom Yes/No Button components (both button and div/span)
+  const yesNoOptions = Array.from(document.querySelectorAll(".ashby-application-form-input-yesno-option, [class*='yesno-option'], button[data-option='yes'], button[data-option='no']"));
+  for (const opt of yesNoOptions) {{
+    const parentContainer = opt.closest("fieldset, [class*='field'], [class*='container'], [class*='row'], div") || opt.parentElement;
+    const qText = ((parentContainer ? parentContainer.innerText : "") || "").toLowerCase();
+    const isYes = opt.innerText.trim().toLowerCase() === "yes" || opt.getAttribute("data-option") === "yes";
+    const isNo = opt.innerText.trim().toLowerCase() === "no" || opt.getAttribute("data-option") === "no";
+    const isSponsorship = qText.includes("sponsorship") || qText.includes("require visa") || qText.includes("need a work visa");
+
+    if (isSponsorship && isNo) {{
+      opt.click();
+    }} else if (!isSponsorship && isYes) {{
+      opt.click();
+    }}
+  }}
+
   const allContainers = Array.from(document.querySelectorAll("div, fieldset")).filter(d => {{
-    const btns = Array.from(d.querySelectorAll("button")).filter(b => {{
+    const btns = Array.from(d.querySelectorAll("button, div, span")).filter(b => {{
       const text = (b.innerText || "").trim().toLowerCase();
       const opt = (b.getAttribute("data-option") || "").trim().toLowerCase();
       return ["yes", "no"].includes(text) || ["yes", "no"].includes(opt);
@@ -327,14 +360,25 @@ const inspectionResult = await page.evaluate(() => {{
     }}
   }}
 
-  // Handle Checkboxes (Agreement / Confirmation / Privacy)
+  // Handle Checkboxes (Agreement / Confirmation / Privacy / Source)
   const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox']"));
   for (const cb of checkboxes) {{
-    if (!cb.checked) {{
-      cb.click();
-      cb.checked = true;
-      cb.dispatchEvent(new Event("change", {{ bubbles: true }}));
-      cb.dispatchEvent(new Event("input", {{ bubbles: true }}));
+    const cbLabel = ((cb.closest("label") || cb.parentElement || {{}}).innerText || cb.name || "").toLowerCase().trim();
+    const isLocationNonIndia = cbLabel.includes("argentina") || cbLabel.includes("located in") || cbLabel.includes("reside in");
+    const isConflictSource = ["recruiter", "referral", "website", "indeed", "x (formerly", "discord", "telegram", "reddit", "none of the above"].some(s => cbLabel.includes(s));
+    const isAgreed = cbLabel.includes("agree") || cbLabel.includes("consent") || cbLabel.includes("privacy") || cbLabel.includes("terms") || cbLabel.includes("policy") || cbLabel.includes("certify") || cbLabel.includes("acknowledge") || cbLabel.includes("confirm");
+    const isLinkedinSource = cbLabel.includes("linkedin");
+
+    if (isLocationNonIndia || isConflictSource) {{
+      continue;
+    }}
+    if (isAgreed || isLinkedinSource) {{
+      if (!cb.checked) {{
+        cb.click();
+        cb.checked = true;
+        cb.dispatchEvent(new Event("change", {{ bubbles: true }}));
+        cb.dispatchEvent(new Event("input", {{ bubbles: true }}));
+      }}
     }}
   }}
 
@@ -400,7 +444,7 @@ console.log("[Ashby-Apply] Custom Questions Found:", JSON.stringify(inspectionRe
         chatgpt_answers = resolve_questions_for_company(
             questions=formatted_questions,
             company=company_name,
-            job_title="Software Engineer"
+            job_title=effective_title
         )
         print(f"[+] Resolved {len(chatgpt_answers)} custom answers.")
 
@@ -480,6 +524,7 @@ console.log("[Ashby-Apply] Validation Status:", JSON.stringify(validationStatus,
 
 // Submit or Stage
 if ({str(submit).lower()}) {{
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
   console.log("[Ashby-Apply] Submitting application now...");
   await page.evaluate(() => {{
     const unpressedYesBtns = Array.from(document.querySelectorAll('button[data-option="yes"][aria-pressed="false"], button[data-option="yes"]:not([class*="selected"])'));
@@ -491,9 +536,20 @@ if ({str(submit).lower()}) {{
     }}
     const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox']"));
     for (const cb of checkboxes) {{
-      if (!cb.checked) {{
-        cb.click();
-        cb.checked = true;
+      const cbLabel = ((cb.closest("label") || cb.parentElement || {{}}).innerText || cb.name || "").toLowerCase().trim();
+      const isLocationNonIndia = cbLabel.includes("argentina") || cbLabel.includes("located in") || cbLabel.includes("reside in");
+      const isConflictSource = ["recruiter", "referral", "website", "indeed", "x (formerly", "discord", "telegram", "reddit", "none of the above"].some(s => cbLabel.includes(s));
+      const isAgreed = cbLabel.includes("agree") || cbLabel.includes("consent") || cbLabel.includes("privacy") || cbLabel.includes("terms") || cbLabel.includes("policy") || cbLabel.includes("certify") || cbLabel.includes("acknowledge") || cbLabel.includes("confirm");
+      const isLinkedinSource = cbLabel.includes("linkedin");
+
+      if (isLocationNonIndia || isConflictSource) {{
+        continue;
+      }}
+      if (isAgreed || isLinkedinSource) {{
+        if (!cb.checked) {{
+          cb.click();
+          cb.checked = true;
+        }}
       }}
     }}
   }});
@@ -529,7 +585,17 @@ if ({str(submit).lower()}) {{
     combined3 = (proc3.stdout or "") + "\n" + (proc3.stderr or "")
     print(combined3)
 
-    is_success = "submitBtnEnabled\": true" in combined3 or "Submission Output:" in combined3
+    if submit:
+        comb_lower = combined3.lower()
+        is_success = (
+            "successfully submitted" in comb_lower or
+            "application submitted" in comb_lower or
+            "thank you" in comb_lower or
+            "submission output: thank" in comb_lower or
+            "application has been submitted" in comb_lower
+        ) and (proc3.returncode == 0)
+    else:
+        is_success = ("submitBtnEnabled\": true" in combined3 or "submitBtnEnabled: true" in combined3) and (proc3.returncode == 0)
 
     result = {
         "success": is_success,

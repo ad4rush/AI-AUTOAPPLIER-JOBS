@@ -150,6 +150,7 @@ def apply_to_manatal_job(
 
     if ({str(submit).lower()}) {{
       await page.waitForTimeout(1000);
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       await page.evaluate(() => {{
         const root = document.getElementById("application-root");
         const btn = Array.from(root.shadowRoot.querySelectorAll("button")).find(b => 
@@ -228,6 +229,7 @@ def apply_to_manatal_job(
 
     if ({str(submit).lower()}) {{
       await page.waitForTimeout(1000);
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       await page.evaluate(() => {{
         const btn = document.querySelector("#submit-id-submit, button[type='submit'], input[type='submit']");
         if (btn) btn.click();

@@ -36,10 +36,12 @@ def apply_to_remote_contract_job(
     """
     Applies to an Outlier, Mercor, or remote contract opening in ego-browser Profile 1.
     """
-    if not resume_path:
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
-
-    resume_abs = str(Path(resume_path).resolve())
+    if not resume_path or not Path(resume_path).exists():
+        from engine.resume_router import resolve_resume_and_metadata
+        meta = resolve_resume_and_metadata(company="Mercor", title="Software Engineer", url=url_or_id)
+        resume_abs = meta.get("resume_path")
+    else:
+        resume_abs = str(Path(resume_path).resolve())
 
     # Determine platform
     is_mercor = "mercor.com" in url_or_id or "mercor" in url_or_id.lower()
@@ -178,20 +180,35 @@ let submitted = false;
 let confirmationSnippet = "";
 if ({str(submit).lower()}) {{
   console.log("[Remote-Apply] Submit=True requested. Locating submit button...");
-  submitted = await page.evaluate(() => {{
+  const canSubmit = await page.evaluate(() => {{
     const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
     const subBtn = btns.find(b => {{
       const t = (b.innerText || b.value || "").toLowerCase();
       return t.includes("apply") || t.includes("submit") || t.includes("continue");
     }});
-    if (subBtn && !subBtn.disabled) {{
-      subBtn.click();
-      return true;
-    }}
-    return false;
+    return !!(subBtn && !subBtn.disabled);
   }});
+  if (canSubmit) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
+    submitted = await page.evaluate(() => {{
+      const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+      const subBtn = btns.find(b => {{
+        const t = (b.innerText || b.value || "").toLowerCase();
+        return t.includes("apply") || t.includes("submit") || t.includes("continue");
+      }});
+      if (subBtn && !subBtn.disabled) {{
+        subBtn.click();
+        return true;
+      }}
+      return false;
+    }});
+  }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
+  }}
   await new Promise(r => setTimeout(r, 4000));
   confirmationSnippet = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 500) : "");
+}} else {{
+  console.log("[[SUBMIT_CLICK_NONE]]");
 }}
 
 const hasRealForm = formResult.length > 0;

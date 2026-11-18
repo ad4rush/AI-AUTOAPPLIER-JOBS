@@ -183,6 +183,7 @@ console.log("[Breezy-Apply] Validation Status:", JSON.stringify(validation, null
 const submitMode = {str(submit).lower()};
 if (submitMode) {{
   if (validation.submitBtnFound && validation.submitBtnEnabled) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[Breezy-Apply] SUBMIT MODE: Submitting application...");
     await page.evaluate(() => {{
       const submitBtn = Array.from(document.querySelectorAll("button, input[type='submit']")).find(b => (b.innerText || b.value || "").toLowerCase().includes("submit"));
@@ -195,6 +196,7 @@ if (submitMode) {{
     console.log("[Breezy-Apply] Post-submit Title: " + postSubmitTitle);
     console.log("[Breezy-Apply] Application submitted successfully!");
   }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
     console.log("[Breezy-Apply] Cannot submit: submit button is not ready or has validation errors.");
   }}
 }} else {{

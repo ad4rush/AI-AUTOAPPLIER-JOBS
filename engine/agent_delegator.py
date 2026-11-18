@@ -8,6 +8,7 @@ with FULL conversation context, candidate dossier, and --dangerously-skip-permis
 import sys
 import os
 import re
+import time
 import json
 import subprocess
 from datetime import datetime
@@ -65,7 +66,6 @@ from engine.company_delegator_memory import normalize_company_slug
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default parent conversation ID if none specified
-PARENT_CONVERSATION_ID = "6650d8c7-9a16-4c0f-ae23-bc21971d656b"
 
 def build_worker_prompt(
     company: str,
@@ -88,11 +88,37 @@ def build_worker_prompt(
     """
     comp_slug = normalize_company_slug(company)
 
+    # Pre-load existing verified apply procedure memory from disk if available
+    proc_file = DATA_DIR / "company_apply_procedures" / f"{comp_slug}.json"
+    cached_proc_block = ""
+    if proc_file.exists():
+        try:
+            with open(proc_file, "r", encoding="utf-8") as pf:
+                p_data = json.load(pf)
+                cached_proc_block = f"""
+=============================================================================
+EXISTING MEMORIZED PROCEDURE FOR {company.upper()} (REUSE DIRECTLY)
+=============================================================================
+- Target ATS Platform: {p_data.get('ats_platform', 'Unknown')}
+- Last Verified Apply URL: {p_data.get('last_url', url)}
+- Known DOM Selectors:
+{json.dumps(p_data.get('selectors', {}), indent=2)}
+- Verified Screening Answers:
+{json.dumps(p_data.get('question_answers', {}), indent=2)}
+- Known Form Fields:
+{json.dumps(p_data.get('known_fields', []), indent=2)}
+- Step-by-Step Instructions:
+{json.dumps(p_data.get('step_by_step_instructions', []), indent=2)}
+- Notes & Quirks: {p_data.get('notes', 'None')}
+"""
+        except Exception:
+            pass
+
     if is_resume:
         prompt = f"""You are resuming your role as the dedicated autonomous Job Application Worker for candidate {CANDIDATE_NAME} at {company}.
 You previously executed applications for {company} (Previous handled role: '{previous_role or "Initial Opening"}').
 A NEW job opening has just opened up at {company}! Execute this application end-to-end autonomously.
-
+{cached_proc_block}
 =============================================================================
 NEW JOB OPENING AT {company.upper()}
 =============================================================================
@@ -278,7 +304,7 @@ YOUR ASSIGNED JOB TARGET
 - Application URL: {url}
 - Suggested Resume Archetype: master_resumes/{archetype}.pdf
 - Submit Mode: {'SUBMIT IMMEDIATELY (Remote/Contract)' if submit else 'STAGE_AND_VALIDATE (Full-Time/On-Site)'}
-
+{cached_proc_block}
 =============================================================================
 SELF-IMPROVING APPLICATION PROCEDURE & LIFELONG MEMORY MANDATE (CRITICAL)
 =============================================================================
@@ -379,6 +405,22 @@ STEP-BY-STEP EXECUTION INSTRUCTIONS
     return prompt.strip()
 
 
+MAX_CONCURRENT_AGENTS = 5
+
+def count_active_worker_agents() -> int:
+    """Counts running agy -p worker processes to prevent browser stampede/crush."""
+    try:
+        out = subprocess.check_output(["ps", "-eo", "pid,command"]).decode("utf-8", errors="ignore")
+        count = 0
+        for line in out.splitlines():
+            # Match background worker processes
+            if "agy -p" in line and "ps -eo" not in line:
+                count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def delegate_job_to_agent(
     job_id: str,
     company: str,
@@ -386,10 +428,11 @@ def delegate_job_to_agent(
     url: str,
     location: str = "",
     submit: bool = True,
-    archetype: str = "RESUME_1_AI_ENGINEER",
+    archetype: Optional[str] = None,
     conversation_id: Optional[str] = None,
     sync: bool = False,
-    timeout_sec: int = 300
+    timeout_sec: int = 900,
+    model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Spawns or resumes an autonomous AGY worker with --dangerously-skip-permissions.
@@ -397,6 +440,52 @@ def delegate_job_to_agent(
     preserving full portal context, task spaces, and screening question memory.
     """
     assert_real_candidate_profile()
+
+    active_count = count_active_worker_agents()
+    if active_count >= MAX_CONCURRENT_AGENTS:
+        if not sync:
+            print(f"[Delegator:Throttled] {active_count} active worker(s) running (MAX={MAX_CONCURRENT_AGENTS}). Skipping background spawn for [{company}] {title} to prevent browser crush.")
+            return {
+                "success": False,
+                "job_id": job_id,
+                "company": company,
+                "error": f"Throttled: {active_count} active worker(s) running (MAX={MAX_CONCURRENT_AGENTS})",
+                "throttled": True
+            }
+        else:
+            print(f"[Delegator:Queue] {active_count} active worker(s) running. Waiting up to 180s for capacity before launching [{company}] {title}...")
+            start_wait = time.time()
+            while count_active_worker_agents() >= MAX_CONCURRENT_AGENTS and (time.time() - start_wait < 180):
+                time.sleep(5)
+            if count_active_worker_agents() >= MAX_CONCURRENT_AGENTS:
+                return {
+                    "success": False,
+                    "job_id": job_id,
+                    "company": company,
+                    "error": f"Timed out waiting for worker slot (MAX={MAX_CONCURRENT_AGENTS})",
+                    "throttled": True
+                }
+
+    from engine.resume_router import resolve_resume_and_metadata
+    routed_meta = resolve_resume_and_metadata(company=company, title=title, job_id=job_id, url=url)
+    resolved_archetype = Path(routed_meta.get("resume_path", "")).stem if routed_meta.get("resume_path") else (archetype or "RESUME_3_SWE_BACKEND")
+    eff_archetype = archetype if (archetype and archetype != "RESUME_1_AI_ENGINEER") else resolved_archetype
+
+    from engine.dedup import check_application
+    decision = check_application(company=company, title=title, url=url, job_id=job_id, delegating=True)
+    if not decision.allowed:
+        print(f"\n[Delegator] Refusing to delegate job '{job_id}' ({company} - {title}): {decision.reason}: {decision.detail}")
+        return {
+            "success": False,
+            "skipped": True,
+            "duplicate": decision.reason == "DUPLICATE",
+            "in_progress": decision.reason == "IN_PROGRESS",
+            "blocked_reason": decision.reason,
+            "duplicate_of": decision.duplicate_of,
+            "job_id": job_id,
+            "company": company,
+            "error": f"{decision.reason}: {decision.detail}",
+        }
 
     from engine.company_delegator_memory import (
         get_company_delegator,
@@ -426,7 +515,7 @@ def delegate_job_to_agent(
         job_id=job_id,
         location=location,
         submit=submit,
-        archetype=archetype,
+        archetype=eff_archetype,
         is_resume=is_resume,
         previous_role=previous_role,
         conversation_id=conversation_id or ""
@@ -443,9 +532,14 @@ def delegate_job_to_agent(
     cmd = [
         agy_bin,
         "-p", prompt,
-        "--effort", "high",
         "--dangerously-skip-permissions"
     ]
+    if model:
+        cmd.extend(["--model", model])
+        if model != "claude-sonnet-4-6":
+            cmd.extend(["--effort", "medium"])
+    else:
+        cmd.extend(["--effort", "medium"])
     if conversation_id:
         cmd.extend(["--conversation", conversation_id])
 
@@ -453,7 +547,8 @@ def delegate_job_to_agent(
     print(f"            Mode: {'RESUMING_CONVERSATION' if is_resume else 'FRESH_WORKER'}")
     if conversation_id:
         print(f"            Reusing Conversation: {conversation_id}")
-    print(f"            Command: agy -p <assignment> --effort high --dangerously-skip-permissions {'--conversation ' + conversation_id if conversation_id else ''}")
+    cmd_str = f"agy -p <assignment> {'--model ' + model if model else ''} {'--effort medium' if (not model or model != 'claude-sonnet-4-6') else ''} --dangerously-skip-permissions {'--conversation ' + conversation_id if conversation_id else ''}".strip()
+    print(f"            Command: {cmd_str}")
     print(f"            Log output: {log_file}")
 
     # Track pre-spawn brain directories to detect new session ID if starting fresh
@@ -537,7 +632,6 @@ def delegate_job_to_agent(
         )
 
         # Detect new brain directory shortly after launch if fresh
-        import time
         if not is_resume and BRAIN_DIR.exists():
             time.sleep(1.2)
             after_brains = set(p.name for p in BRAIN_DIR.iterdir() if p.is_dir())
@@ -560,17 +654,21 @@ def delegate_job_to_agent(
         }
 
 
-def delegate_batch_jobs(jobs: List[Any], submit: bool = True, max_concurrent: int = 2) -> List[Dict[str, Any]]:
-    """Delegates a list of newly found jobs to AGY worker agents."""
+def delegate_batch_jobs(jobs: List[Any], submit: bool = True, max_concurrent: int = 5, model: Optional[str] = None, stagger_sec: float = 8.0) -> List[Dict[str, Any]]:
+    """Delegates a list of newly found jobs to AGY worker agents with staggered launch to protect browser."""
     results = []
-    for item in jobs[:max_concurrent]:
+    for idx, item in enumerate(jobs[:max_concurrent]):
         job = dict(item) if not isinstance(item, dict) else item
         jid = job.get("job_id", "")
         co = job.get("company", "")
         title = job.get("title", "")
         url = job.get("url", "")
         loc = job.get("location", "")
-        arch = job.get("archetype", "RESUME_1_AI_ENGINEER")
+        arch = job.get("archetype", None)
+
+        if idx > 0 and stagger_sec > 0:
+            print(f"[*] Staggering worker launch: waiting {stagger_sec}s before spawning worker #{idx+1}...")
+            time.sleep(stagger_sec)
 
         res = delegate_job_to_agent(
             job_id=jid,
@@ -580,7 +678,8 @@ def delegate_batch_jobs(jobs: List[Any], submit: bool = True, max_concurrent: in
             location=loc,
             submit=submit,
             archetype=arch,
-            sync=False
+            sync=False,
+            model=model
         )
         results.append(res)
     return results

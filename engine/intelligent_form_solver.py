@@ -289,7 +289,7 @@ def resolve_schema_answers_intelligently(
             resolved[key] = "Python, Go, FastAPI, PostgreSQL, PyTorch, Apache Spark, AWS Glue, Kafka"
             continue
         if any(k in lbl for k in ["preferred name", "nickname"]):
-            resolved[key] = f"{CANDIDATE_FIRST_NAME} Jha"
+            resolved[key] = f"{CANDIDATE_FIRST_NAME} {CANDIDATE_LAST_NAME}".strip() if CANDIDATE_LAST_NAME else CANDIDATE_FIRST_NAME
             continue
         if (lbl == "name" or any(k in lbl for k in ["full name", "legal name", "your name"])) and widget == "text":
             resolved[key] = CANDIDATE_NAME
@@ -759,12 +759,14 @@ console.log("FINAL_VALIDATION:" + JSON.stringify(validation));
 // Submission mode
 if ({str(submit).lower()}) {{
   if (validation.submitBtnFound && validation.submitBtnEnabled && validation.errorsCount === 0) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[Solver] SUBMITTING APPLICATION NOW...");
     await page.click("button[type='submit'], input[type='submit'], .ashby-application-form-submit-button, button#btn-submit");
     await new Promise(r => setTimeout(r, 8000));
     const confirmation = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 500) : "");
     console.log("SUBMISSION_CONFIRMATION:" + confirmation.replace(/\\n+/g, " | "));
   }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
     console.log("[Solver] Submit blocked: Validation errors present or button disabled.");
   }}
 }} else {{
@@ -791,8 +793,13 @@ if ({str(submit).lower()}) {{
             pass
 
     submitted = False
-    if "SUBMISSION_CONFIRMATION:" in output and ("successfully submitted" in output or "Thank you for applying" in output):
-        submitted = True
+    if "SUBMISSION_CONFIRMATION:" in output:
+        out_lower = output.lower()
+        if any(w in out_lower for w in [
+            "successfully submitted", "thank you for applying", "application received",
+            "application has been submitted", "thank you for your interest", "received your application"
+        ]):
+            submitted = True
 
     # Record verified procedure to company memory
     record_company_procedure(
@@ -803,8 +810,10 @@ if ({str(submit).lower()}) {{
         notes=f"Auto-solved via Intelligent Form Solver. Validated errors: {validation.get('errorsCount', 0)}. Submitted: {submitted}"
     )
 
+    actual_success = submitted if submit else (validation.get("submitBtnEnabled", False) or bool(schema.get("fields")))
+
     return {
-        "success": validation.get("submitBtnEnabled", False) or submitted,
+        "success": actual_success,
         "submitted": submitted,
         "validation": validation,
         "resume_path": resume_abs,

@@ -67,7 +67,7 @@ from engine.config import (
 )
 from engine.procedure_memory import record_company_procedure
 from engine.db import update_job_status
-from engine.resume_router import select_resume_for_job
+from engine.resume_router import select_resume_for_job, classify_master_archetype
 
 
 def apply_to_linkedin_job(
@@ -78,11 +78,13 @@ def apply_to_linkedin_job(
     submit: bool = False,
     profile_id: str = EGO_BROWSER_COLLEGE_PROFILE_ID,
     task_space_name: Optional[str] = None,
-    job_id_db: Optional[str] = None
+    job_id_db: Optional[str] = None,
+    jd_text: Optional[str] = None,
+    **kwargs
 ) -> Dict[str, Any]:
     """
     Autonomously navigates and completes the LinkedIn Easy Apply modal for a job.
-    Defaults to Profile 2 ('COLLEGE PROFILE' - Adarsh Jha, adarsh22024@iiitd.ac.in).
+    Defaults to Profile 2 ('COLLEGE PROFILE').
     """
     assert_real_candidate_profile()
 
@@ -150,8 +152,8 @@ def apply_to_linkedin_job(
     print(f"[*] LinkedIn dynamic resume routing for {comp} — '{effective_title}': Archetype={chosen_archetype} | File={Path(resume_abs).name} | CustomTailored={is_custom_tailored}")
 
     # Candidate profile constants for JavaScript injection (Profile 2 College Identity)
-    cand_first = (CANDIDATE_FIRST_NAME or "Adarsh").replace('"', '\\"')
-    cand_last = (CANDIDATE_LAST_NAME or "Jha").replace('"', '\\"')
+    cand_first = (CANDIDATE_FIRST_NAME or "").replace('"', '\\"')
+    cand_last = (CANDIDATE_LAST_NAME or "").replace('"', '\\"')
     cand_email = (CANDIDATE_COLLEGE_EMAIL or CANDIDATE_EMAIL).replace('"', '\\"')
     cand_phone_digits = CANDIDATE_PHONE_PLAIN.replace('"', '\\"')
     cand_name = f"{cand_first} {cand_last}".strip()
@@ -171,6 +173,7 @@ def apply_to_linkedin_job(
     cand_summary = f"{cand_name} - B.Tech {ANS_MAJOR} from {ANS_COLLEGE} ({ANS_GRAD_YEAR}). Experienced in AI systems, distributed computing, and backend architecture.".replace('"', '\\"')
 
     node_script = f"""
+(async () => {{
 const fs = await import("node:fs/promises");
 
 const spaces = await listTaskSpaces();
@@ -231,15 +234,16 @@ const pageMeta = await page.evaluate(() => {{
     (b.innerText && b.innerText.includes("Apply on company website")) ||
     (b.href && b.href.includes("externalApply"))
   );
-  const isAlreadyApplied = Array.from(document.querySelectorAll("button, span, div.artdeco-inline-feedback, p")).some(el => {{
+  const isAlreadyApplied = Array.from(document.querySelectorAll(".jobs-unified-top-card button, .jobs-unified-top-card span, .job-details-jobs-unified-top-card button, .job-details-jobs-unified-top-card span, div.artdeco-inline-feedback, .jobs-apply-button--applied")).some(el => {{
     const t = (el.innerText || "").trim().toLowerCase();
-    return t === "applied" || t.startsWith("applied on") || t.startsWith("applied ");
+    return t === "applied" || t.startsWith("applied on ") || (el.classList.contains("artdeco-inline-feedback") && t.includes("application submitted"));
   }});
   return {{
     title,
     company: comp,
     hasEasyApply: !!easyApplyBtn,
     hasExternalApply: !!externalApplyBtn,
+    externalApplyUrl: externalApplyBtn ? (externalApplyBtn.href || "") : "",
     isAlreadyApplied
   }};
 }});
@@ -260,15 +264,13 @@ if (!pageMeta.hasEasyApply) {{
     try {{ await task.finish({{ keep: [] }}); }} catch(e) {{}}
     process.exit(0);
   }}
-
-  console.log("[LinkedIn-Apply] Job does not have an Easy Apply button.");
+  console.log("[LinkedIn-Apply] No Easy Apply button found. External redirect required.");
   await fs.writeFile("{output_json_path}", JSON.stringify({{
     success: false,
     isEasyApply: false,
-    hasExternalApply: pageMeta.hasExternalApply,
-    error: pageMeta.hasExternalApply ? "Job requires external ATS application" : "No Easy Apply button found on page",
-    company: pageMeta.company || "{comp}",
-    title: pageMeta.title
+    externalRedirect: true,
+    externalUrl: pageMeta.externalApplyUrl,
+    reason: "No Easy Apply button. External apply required."
   }}));
   try {{ await task.finish({{ keep: [] }}); }} catch(e) {{}}
   process.exit(0);
@@ -360,7 +362,7 @@ while (stepNumber < 15) {{
     return (text.includes("resume") || text.includes("upload resume")) && hasFileInput;
   }});
 
-  if (isResumeStep && "{resume_abs}" && ({str(is_custom_tailored).lower()} || "{chosen_archetype}" === "SWE_BACKEND")) {{
+  if (isResumeStep && "{resume_abs}" && ({str(is_custom_tailored).lower()} || "{chosen_archetype}" === "SWE_BACKEND" || "{chosen_archetype}" === "ML_ENGINEER")) {{
     try {{
       console.log("[LinkedIn-Apply] Uploading specialized/tailored resume: {resume_abs}");
       await page.setInputFiles("dialog input[type='file']", ["{resume_abs}"]);
@@ -452,7 +454,10 @@ while (stepNumber < 15) {{
           if (cand.archetype === "DATA_ENGINEER" && (rText.includes("data") || rText.includes("lakehouse"))) {{
             targetResumeRadio = r;
             break;
-          }} else if (cand.archetype === "AI_ENGINEER" && (rText.includes("ai") || rText.includes("ml") || rText.includes("llm"))) {{
+          }} else if (cand.archetype === "ML_ENGINEER" && (rText.includes("ml") || rText.includes("machine") || rText.includes("ai"))) {{
+            targetResumeRadio = r;
+            break;
+          }} else if (cand.archetype === "AI_ENGINEER" && (rText.includes("ai") || rText.includes("llm"))) {{
             targetResumeRadio = r;
             break;
           }} else if (cand.archetype === "SWE_BACKEND" && (rText.includes("backend") || rText.includes("swe") || rText.includes("software"))) {{
@@ -676,6 +681,7 @@ let confirmationText = "";
 
 if (isReviewScreen) {{
   if ({str(submit).lower()}) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[LinkedIn-Apply] Production Submit Mode enabled. Executing final submission...");
     await page.evaluate(() => {{
       const d = document.querySelector("dialog");
@@ -734,6 +740,7 @@ await fs.writeFile("{output_json_path}", JSON.stringify({{
   screenshotPath: {str(submit).lower()} ? "{submitted_screenshot_path}" : "{staged_screenshot_path}",
   taskSpace: "{tspace}"
 }}));
+}})();
 """
 
     verify_script_zero_placeholders(node_script, "LinkedIn Easy Apply Engine")
@@ -818,10 +825,21 @@ await fs.writeFile("{output_json_path}", JSON.stringify({{
 
         # Update database status if job_id was linked
         if job_id_db:
-            new_status = "APPLIED" if is_submitted else ("STAGED_FOR_REVIEW" if is_success else "FAILED")
+            if is_submitted:
+                new_status = "APPLIED"
+            elif is_success:
+                new_status = "STAGED_FOR_REVIEW"
+            elif res_data.get("externalRedirect") or res_data.get("hasExternalApply"):
+                new_status = "EXTERNAL_ATS"
+            else:
+                new_status = "FAILED"
+
+            note_desc = "Submitted directly" if is_submitted else ("Staged in ego-browser " + profile_id if is_success else ("External ATS required" if new_status == "EXTERNAL_ATS" else "No Easy Apply"))
             details = {
-                "notes": f"[LinkedIn Easy Apply] {'Submitted directly' if is_submitted else f'Staged in ego-browser {profile_id}'}. TaskSpace: {tspace}. Resume: {resume_abs}"
+                "notes": f"[LinkedIn Easy Apply] {note_desc}. TaskSpace: {tspace}. Resume: {resume_abs}"
             }
+            if res_data.get("externalUrl"):
+                details["url"] = res_data["externalUrl"]
             if is_submitted:
                 details["applied_at"] = datetime.now().isoformat()
             update_job_status(

@@ -804,7 +804,7 @@ def scrape_himalayas() -> List[Dict[str, Any]]:
 
             raw_desc = clean_html(j.get("description", "") or j.get("excerpt", ""))
             record = {
-                "job_id": f"him_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{job_id[:6]}",
+                "job_id": f"him_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canonical_hash[:8]}",
                 "canonical_hash": canonical_hash,
                 "company": company,
                 "title": title + (" [Contract]" if is_contract else "") + " [Remote]",
@@ -821,7 +821,7 @@ def scrape_himalayas() -> List[Dict[str, Any]]:
                     "isRemote": True
                 }
             }
-            raw_path = save_raw_job(company, job_id, record)
+            raw_path = save_raw_job(company, canonical_hash[:8], record)
             record["raw_jd_path"] = raw_path
             discovered.append(record)
     except Exception as e:
@@ -922,7 +922,7 @@ def scrape_remotive() -> List[Dict[str, Any]]:
                 continue
 
             record = {
-                "job_id": f"rem_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{job_id[:6]}",
+                "job_id": f"rem_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canonical_hash[:8]}",
                 "canonical_hash": canonical_hash,
                 "company": company,
                 "title": title + (" [Contract]" if is_contract else "") + " [Remote]",
@@ -938,7 +938,7 @@ def scrape_remotive() -> List[Dict[str, Any]]:
                     "isRemote": True
                 }
             }
-            raw_path = save_raw_job(company, job_id, record)
+            raw_path = save_raw_job(company, canonical_hash[:8], record)
             record["raw_jd_path"] = raw_path
             discovered.append(record)
     except Exception as e:
@@ -966,13 +966,13 @@ def scrape_remoteok() -> List[Dict[str, Any]]:
                 raw_desc = clean_html(j.get("description", ""))
                 tags = j.get("tags", [])
                 is_contract = any("contract" in t.lower() or "freelance" in t.lower() or "part" in t.lower() for t in tags)
-                
+
                 canonical_hash = generate_canonical_hash(company, title, job_url)
                 if is_job_seen(canonical_hash):
                     continue
 
                 record = {
-                    "job_id": f"rok_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{job_id[:6]}",
+                    "job_id": f"rok_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canonical_hash[:8]}",
                     "canonical_hash": canonical_hash,
                     "company": company,
                     "title": title + (" [Contract]" if is_contract else "") + " [Remote]",
@@ -989,7 +989,7 @@ def scrape_remoteok() -> List[Dict[str, Any]]:
                         "isRemote": True
                     }
                 }
-                raw_path = save_raw_job(company, job_id, record)
+                raw_path = save_raw_job(company, canonical_hash[:8], record)
                 record["raw_jd_path"] = raw_path
                 discovered.append(record)
     except Exception as e:
@@ -1016,13 +1016,13 @@ def scrape_jobicy() -> List[Dict[str, Any]]:
                 raw_desc = clean_html(j.get("jobDescription", ""))
                 job_type = j.get("jobType", [])
                 is_contract = any("contract" in str(t).lower() or "freelance" in str(t).lower() for t in job_type)
-                
+
                 canonical_hash = generate_canonical_hash(company, title, job_url)
                 if is_job_seen(canonical_hash):
                     continue
 
                 record = {
-                    "job_id": f"jobicy_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{job_id[:6]}",
+                    "job_id": f"jobicy_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canonical_hash[:8]}",
                     "canonical_hash": canonical_hash,
                     "company": company,
                     "title": title + (" [Contract]" if is_contract else "") + " [Remote]",
@@ -1037,7 +1037,7 @@ def scrape_jobicy() -> List[Dict[str, Any]]:
                         "isRemote": True
                     }
                 }
-                raw_path = save_raw_job(company, job_id, record)
+                raw_path = save_raw_job(company, canonical_hash[:8], record)
                 record["raw_jd_path"] = raw_path
                 discovered.append(record)
     except Exception as e:
@@ -1072,7 +1072,7 @@ def scrape_arbeitnow() -> List[Dict[str, Any]]:
                     continue
 
                 record = {
-                    "job_id": f"arbeit_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{job_slug[:6]}",
+                    "job_id": f"arbeit_{re.sub(r'[^a-zA-Z0-9]', '', company.lower())[:8]}_{canonical_hash[:8]}",
                     "canonical_hash": canonical_hash,
                     "company": company,
                     "title": title + (" [Contract]" if is_contract else "") + " [Remote]",
@@ -1087,7 +1087,7 @@ def scrape_arbeitnow() -> List[Dict[str, Any]]:
                         "isRemote": True
                     }
                 }
-                raw_path = save_raw_job(company, job_slug, record)
+                raw_path = save_raw_job(company, canonical_hash[:8], record)
                 record["raw_jd_path"] = raw_path
                 discovered.append(record)
     except Exception as e:
@@ -1225,6 +1225,218 @@ def scrape_remote_contract_platforms() -> List[Dict[str, Any]]:
 
     return discovered
 
+def clean_company_name(name: str) -> str:
+    """Cleans corporate entity prefixes/suffixes from company name."""
+    if not name:
+        return "Unknown"
+    # Remove leading branch digits / registration codes e.g. '1203 Barclays', '6221 Roche'
+    name = re.sub(r"^\d+\s+", "", name).strip()
+
+    # Iteratively strip corporate entity noise from the end
+    patterns = [
+        r"(?i)\s+(?:global\s+serv(?:ices?|\.)?(?:\s+cent(?:er|re|\.)?)?)$",
+        r"(?i)\s+(?:info(?:rmation)?\s+sol(?:utions?|\.)?(?:\s+india)?)$",
+        r"(?i)\s+(?:tech(?:nology)?\s+op(?:erations?|\.)?(?:\s+india)?)$",
+        r"(?i)\s+(?:india\s+private\s+limited|private\s+limited|pvt\.?\s*ltd\.?)$",
+        r"(?i)\s+(?:limited|ltd\.?|llp|sez|inc\.?|corp(?:\s+svcs)?)$",
+        r"(?i)\s+india$"
+    ]
+    for _ in range(3):
+        prev = name
+        for pat in patterns:
+            name = re.sub(pat, "", name).strip()
+        if name == prev:
+            break
+
+    return name if len(name) >= 2 else "Unknown"
+
+def pick_best_apply_url(options: Any, google_link: str, default_url: str) -> str:
+    """Picks the highest priority direct ATS or application portal link from available options."""
+    if isinstance(options, list) and options:
+        # 1. Direct ATS / Career Portals
+        for opt in options:
+            link = opt.get("link", "")
+            if any(ats in link.lower() for ats in ["workday", "greenhouse", "lever", "ashby", "smartrecruiters", "careers", "icims", "taleo", "brassring", "successfactors"]):
+                return link
+        # 2. LinkedIn
+        for opt in options:
+            link = opt.get("link", "")
+            if "linkedin.com" in link.lower():
+                return link
+        # 3. High-quality job aggregators
+        for opt in options:
+            link = opt.get("link", "")
+            if any(b in link.lower() for b in ["indeed.com", "hirist", "instahyre", "glassdoor"]):
+                return link
+        # 4. First available option
+        first = options[0].get("link")
+        if first:
+            return first
+    return google_link or default_url
+
+def format_datanerd_salary(min_s: Optional[float], avg_s: Optional[float], max_s: Optional[float], curr: Optional[str], rate: Optional[str]) -> str:
+    """Formats salary info nicely, converting Indian figures to LPA when appropriate."""
+    curr = curr or "INR"
+    unit = rate or "yr"
+    if curr == "INR":
+        if avg_s and avg_s > 10000:
+            lpa = avg_s / 100000.0
+            return f"₹{lpa:.1f} LPA"
+        elif min_s and max_s and max_s > 10000:
+            lpa_min = min_s / 100000.0
+            lpa_max = max_s / 100000.0
+            return f"₹{lpa_min:.1f} - ₹{lpa_max:.1f} LPA"
+        elif avg_s and avg_s <= 100:
+            return f"₹{avg_s:.1f} LPA"
+    if avg_s:
+        return f"{curr} {int(avg_s):,} / {unit}"
+    elif min_s and max_s:
+        return f"{curr} {int(min_s):,} - {int(max_s):,} / {unit}"
+    return ""
+
+def scrape_datanerd(
+    title: str = "Data Engineer",
+    country: str = "India",
+    days_back: int = 90,
+    limit: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Scrapes live tech job postings from DataNerd.tech (https://datanerd.tech/jobs).
+    Specifically queries datanerd's job datasets (e.g. data_engineer.parquet) with local
+    caching (6-hour TTL) and DuckDB SQL filtering for country and recency.
+    """
+    try:
+        import duckdb
+    except ImportError:
+        print("[Scraper:DataNerd] duckdb library not available. Please install via 'pip install duckdb'.")
+        return []
+
+    # Map human title to datanerd parquet slug
+    normalized_title = title.strip().lower()
+    title_slug_map = {
+        "data engineer": "data_engineer",
+        "data scientist": "data_scientist",
+        "machine learning engineer": "machine_learning_engineer",
+        "ml engineer": "machine_learning_engineer",
+        "data analyst": "data_analyst",
+        "software engineer": "software_engineer"
+    }
+    slug = title_slug_map.get(normalized_title)
+    if not slug:
+        slug = re.sub(r"[^a-z0-9]+", "_", normalized_title).strip("_")
+
+    parquet_url = f"https://storage.googleapis.com/datanerd-tech-frontend/jobs/{slug}.parquet"
+    cache_dir = Path(RAW_JOBS_DIR).parent / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"datanerd_{slug}.parquet"
+
+    # Cache freshness check (6 hours TTL = 21600 seconds)
+    is_fresh = False
+    if cache_file.exists():
+        try:
+            mtime = cache_file.stat().st_mtime
+            if (time.time() - mtime) < 21600 and cache_file.stat().st_size > 10000:
+                is_fresh = True
+        except Exception:
+            is_fresh = False
+
+    if not is_fresh:
+        print(f"[*] [Scraper:DataNerd] Downloading/updating {slug}.parquet dataset from {parquet_url}...")
+        try:
+            req = urllib.request.Request(parquet_url, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=30) as resp, open(cache_file, "wb") as f:
+                f.write(resp.read())
+            print(f"[+] [Scraper:DataNerd] Successfully cached {cache_file.stat().st_size / (1024 * 1024):.2f} MB.")
+        except Exception as e:
+            print(f"[!] [Scraper:DataNerd] Could not download remote parquet: {e}")
+            if not cache_file.exists():
+                return []
+
+    # Query local parquet via DuckDB
+    discovered = []
+    default_portal_url = f"https://datanerd.tech/jobs?title={urllib.parse.quote(title)}&country={urllib.parse.quote(country)}"
+
+    try:
+        conn = duckdb.connect()
+        # Build country and date clause
+        country_clause = f"LOWER(job_country) = LOWER('{country}')"
+        if country.lower() == "india":
+            country_clause = "(LOWER(job_country) = 'india' OR LOWER(job_location) LIKE '%india%')"
+
+        date_clause = ""
+        if days_back:
+            date_clause = f"AND (job_posted_datetime >= CURRENT_DATE - INTERVAL '{days_back}' DAY OR job_posted_datetime IS NULL)"
+
+        limit_clause = f"LIMIT {limit}" if limit else ""
+
+        query = f"""
+            SELECT
+                job_id, company_name, job_title, job_location, job_country,
+                job_via, CAST(job_posted_datetime AS VARCHAR) as posted_at,
+                job_work_from_home, salary_rate, salary_min, salary_avg, salary_max,
+                currency_iso, job_google_link, job_apply_options, skills, job_description
+            FROM '{cache_file}'
+            WHERE {country_clause}
+              {date_clause}
+            ORDER BY job_posted_datetime DESC NULLS LAST
+            {limit_clause}
+        """
+        rows = conn.execute(query).fetchall()
+
+        for r in rows:
+            row_id, raw_co, job_title, loc, j_country, via, posted_at, wfh, sal_rate, sal_min, sal_avg, sal_max, curr, g_link, apply_opts, skills, raw_desc = r
+            if not is_title_relevant(job_title):
+                continue
+
+            company = clean_company_name(raw_co)
+            url = pick_best_apply_url(apply_opts, g_link, default_portal_url)
+            canonical_hash = generate_canonical_hash(company, job_title, url)
+
+            if is_job_seen(canonical_hash, company, job_title, url):
+                continue
+
+            location = loc or country
+            if wfh and "remote" not in location.lower():
+                location = f"{location} [Remote]"
+
+            salary_str = format_datanerd_salary(sal_min, sal_avg, sal_max, curr, sal_rate)
+            clean_jd = clean_html(raw_desc or "")
+            safe_co = re.sub(r"[^a-zA-Z0-9]", "", company.lower())[:8] or "comp"
+            safe_hash = canonical_hash[:8]
+
+            record = {
+                "job_id": f"dnerd_{safe_co}_{safe_hash}",
+                "canonical_hash": canonical_hash,
+                "company": company,
+                "title": job_title,
+                "location": location,
+                "url": url,
+                "source": "datanerd",
+                "company_tier": classify_company_tier(company),
+                "raw_jd": clean_jd,
+                "metadata": {
+                    "source_url": default_portal_url,
+                    "job_via": via,
+                    "posted_at": posted_at,
+                    "skills": skills if isinstance(skills, list) else [],
+                    "salary": salary_str,
+                    "is_remote": bool(wfh),
+                    "google_link": g_link,
+                    "all_apply_options": apply_opts if isinstance(apply_opts, list) else []
+                }
+            }
+            raw_path = save_raw_job(company, safe_hash, record)
+            record["raw_jd_path"] = raw_path
+            discovered.append(record)
+
+            if limit and len(discovered) >= limit:
+                break
+
+    except Exception as e:
+        print(f"[Scraper:DataNerd] Error querying parquet dataset: {e}")
+
+    return discovered
+
 def run_parallel_scraper(max_workers: int = 8) -> List[Dict[str, Any]]:
     """Runs parallel scrapers across all target OG career sites with deduplication."""
     all_new_jobs = []
@@ -1259,6 +1471,7 @@ def run_parallel_scraper(max_workers: int = 8) -> List[Dict[str, Any]]:
         futures[executor.submit(scrape_jobicy)] = ("jobicy", "jobicy")
         futures[executor.submit(scrape_arbeitnow)] = ("arbeitnow", "arbeitnow")
         futures[executor.submit(scrape_remote_contract_platforms)] = ("remote_platforms", "remote_contract")
+        futures[executor.submit(scrape_datanerd, "Data Engineer", "India")] = ("datanerd", "datanerd_india")
 
         # Scrape Y Combinator (Work at a Startup / y2c)
         try:
@@ -1290,4 +1503,42 @@ def run_parallel_scraper(max_workers: int = 8) -> List[Dict[str, Any]]:
         maybe_update_text_summary(force=True)
 
     print(f"[+] Scraping complete: {len(all_new_jobs)} new distinct relevant jobs ingested into database.")
+    return all_new_jobs
+
+def run_lightweight_remote_scraper(max_workers: int = 6) -> List[Dict[str, Any]]:
+    """
+    Fast (sub-5s) periodic scraper for remote, contract, and AI roles.
+    Pulls from Himalayas, WeWorkRemotely, Remotive, RemoteOK, Jobicy, Arbeitnow,
+    and remote contract platforms with deduplication and DB ingestion.
+    """
+    all_new_jobs = []
+    scrapers = [
+        ("himalayas", scrape_himalayas),
+        ("weworkremotely", scrape_weworkremotely),
+        ("remotive", scrape_remotive),
+        ("remoteok", scrape_remoteok),
+        ("jobicy", scrape_jobicy),
+        ("arbeitnow", scrape_arbeitnow),
+        ("remote_contract", scrape_remote_contract_platforms),
+        ("datanerd", lambda: scrape_datanerd("Data Engineer", "India", days_back=30)),
+    ]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(func): name for name, func in scrapers}
+        for f in as_completed(futures):
+            name = futures[f]
+            try:
+                result = f.result()
+                if isinstance(result, list):
+                    for j in result:
+                        if isinstance(j, dict):
+                            inserted = insert_job(j, refresh_summary=False)
+                            if inserted:
+                                all_new_jobs.append(j)
+            except Exception as e:
+                print(f"[!] Remote scraper error ({name}): {e}")
+
+    if all_new_jobs:
+        from engine.db import maybe_update_text_summary
+        maybe_update_text_summary(force=True)
     return all_new_jobs

@@ -291,6 +291,7 @@ let submitted = false;
 let confirmationText = "";
 if ({str(submit).lower()}) {{
   console.log("[Rippling-Apply] Submitting application...");
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
   await page.evaluate(() => {{
     const btn = Array.from(document.querySelectorAll("button, input[type='submit']")).find(b => {{
       const t = (b.innerText || b.value || "").trim().toLowerCase();
@@ -307,6 +308,8 @@ if ({str(submit).lower()}) {{
     submitted = true;
     confirmationText = postState.body;
   }}
+}} else {{
+  console.log("[[SUBMIT_CLICK_NONE]]");
 }}
 
 console.log(JSON.stringify({{

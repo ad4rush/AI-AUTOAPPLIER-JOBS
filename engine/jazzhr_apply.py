@@ -39,6 +39,8 @@ from engine.config import (
     CANDIDATE_ZIP,
     CANDIDATE_LINKEDIN,
     CANDIDATE_GITHUB,
+    assert_real_candidate_profile,
+    verify_script_zero_placeholders,
 )
 from engine.procedure_memory import record_company_procedure
 from engine.resume_router import select_resume_for_job, resolve_resume_and_metadata
@@ -60,6 +62,7 @@ def apply_to_jazzhr_job(
     """
     Automates application submission or staging on JazzHR (applytojob.com).
     """
+    assert_real_candidate_profile()
     clean_url = url.split("?")[0].strip()
 
     if not company_name:
@@ -102,7 +105,13 @@ def apply_to_jazzhr_job(
     task = await taskSpace("{task_space_name}", {{ profileId: "{EGO_BROWSER_MAIN_PROFILE_ID}" }});
   }}
 
-  const page = task.page("p1");
+  let page;
+  const pages = await task.pages();
+  if (pages.length > 0) {{
+    page = pages[0];
+  }} else {{
+    page = await task.newPage({{ label: "p1" }});
+  }}
   console.log("[JazzHR-Apply] Navigating to: " + {target_url_js});
   await page.goto({target_url_js}, {{ waitUntil: "domcontentloaded", timeout: 40000 }});
   await page.waitForTimeout(3000);
@@ -143,6 +152,71 @@ def apply_to_jazzhr_job(
       if (li) li.value = linkedin;
     }}, {{ linkedin: "{CANDIDATE_LINKEDIN}" }});
   }} catch(e) {{}}
+
+  // 2b. Questionnaire Answers
+  console.log("[JazzHR-Apply] Answering custom questionnaire fields...");
+  try {{
+    await page.evaluate(() => {{
+      const qFields = Array.from(document.querySelectorAll("[name*='resumator-questionnaire']"));
+      for (const field of qFields) {{
+        const formGroup = field.closest(".form-group") || field.parentElement;
+        const labelText = formGroup ? (formGroup.querySelector("label") ? formGroup.querySelector("label").innerText.toLowerCase() : "") : "";
+
+        if (field.tagName === "SELECT") {{
+          if (labelText.includes("fluent in english") || labelText.includes("sql") || labelText.includes("4 pm pt") || labelText.includes("available") || labelText.includes("authorized")) {{
+            for (const opt of field.options) {{
+              if (opt.value.toLowerCase() === "yes" || opt.text.toLowerCase().includes("yes")) {{
+                field.value = opt.value;
+                field.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                break;
+              }}
+            }}
+          }} else if (labelText.includes("sponsorship") || labelText.includes("require visa")) {{
+            for (const opt of field.options) {{
+              if (opt.value.toLowerCase() === "no" || opt.text.toLowerCase().includes("no")) {{
+                field.value = opt.value;
+                field.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                break;
+              }}
+            }}
+          }}
+        }} else if (field.tagName === "INPUT" || field.tagName === "TEXTAREA") {{
+          if (labelText.includes("salary") || labelText.includes("compensation") || labelText.includes("usd")) {{
+            field.value = "3500";
+            field.dispatchEvent(new Event("input", {{ bubbles: true }}));
+          }} else if (labelText.includes("notice") || labelText.includes("start")) {{
+            field.value = "Immediate / 15 days";
+            field.dispatchEvent(new Event("input", {{ bubbles: true }}));
+          }} else if (labelText.includes("experience") || labelText.includes("years")) {{
+            field.value = "2";
+            field.dispatchEvent(new Event("input", {{ bubbles: true }}));
+          }}
+        }}
+      }}
+    }});
+  }} catch(e) {{
+    console.log("[JazzHR-Apply] Questionnaire answering notice:", e.message);
+  }}
+
+  await page.waitForTimeout(1000);
+
+  // Anti-Placeholder In-Browser Verification Guard
+  const placeholderAudit = await page.evaluate(() => {{
+    const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
+    const badTokens = ["Q2FuZGlkYXRlIE5hbWU=", "NTU1MDE5OTAwMA==", "NTU1LTAxOTk=", "Y2FuZGlkYXRlQGV4YW1wbGUuY29t", "VGVjaCBDaXR5", "KzEtNTU1"].map(s => atob(s));
+    const foundBad = [];
+    inputs.forEach(i => {{
+      const v = (i.value || "").trim();
+      badTokens.forEach(token => {{
+        if (v.includes(token)) foundBad.push({{ id: i.id || i.name, val: v, token: token }});
+      }});
+    }});
+    return foundBad;
+  }});
+  if (placeholderAudit.length > 0) {{
+    console.error("[CRITICAL-ABORT] Detected dummy placeholders in form fields:", JSON.stringify(placeholderAudit));
+    throw new Error("ABORTED: Form contains dummy placeholder credentials! Real candidate profile required.");
+  }}
 
   await page.waitForTimeout(1500);
 
@@ -185,9 +259,11 @@ def apply_to_jazzhr_job(
 
   if (shouldSubmit) {{
     if (validation.hasRecaptcha && !validation.recaptchaSolved) {{
+      console.log("[[SUBMIT_CLICK_NONE]]");
       console.log("[JazzHR-Apply] reCAPTCHA challenge present and awaiting human verification. Staging form 100% complete.");
     }} else if (validation.hasSubmitBtn) {{
       console.log("[JazzHR-Apply] Executing form submission...");
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       await page.evaluate(() => {{
         const btn = document.getElementById("resumator-submit-resume");
         if (btn) btn.click();
@@ -202,8 +278,11 @@ def apply_to_jazzhr_job(
         onPageConfirmation = true;
         console.log("[JazzHR-Apply] On-page submission confirmed!");
       }}
+    }} else {{
+      console.log("[[SUBMIT_CLICK_NONE]]");
     }}
   }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
     console.log("[JazzHR-Apply] STAGED MODE: All fields populated and validated (0 validation errors).");
   }}
 
@@ -221,6 +300,7 @@ def apply_to_jazzhr_job(
 }})();
 """
 
+    verify_script_zero_placeholders(node_script, "JazzHR Node Script")
     script_path = DATA_DIR / "company_apply_procedures" / "_run_jazzhr_apply.js"
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(node_script)

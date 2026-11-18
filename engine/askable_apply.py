@@ -45,6 +45,7 @@ def apply_to_askable_job(
     Executes end-to-end application on Askable career portal.
     """
     assert_real_candidate_profile()
+    cand_github_user = CANDIDATE_GITHUB.rstrip('/').split('/')[-1] if CANDIDATE_GITHUB else ""
 
     if not resume_path:
         resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
@@ -178,7 +179,7 @@ def apply_to_askable_job(
     if (country) country.value = "India";
 
     const github = document.getElementById("af-github");
-    if (github) github.value = "ad4rush";
+    if (github) github.value = "{cand_github_user}";
 
     const profile = document.getElementById("af-profile");
     if (profile) profile.value = "{CANDIDATE_LINKEDIN}";
@@ -215,6 +216,7 @@ def apply_to_askable_job(
   let done = false;
   let doneText = "";
   if ({str(submit).lower()}) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[Askable] Submitting final wizard step...");
     await page.evaluate(() => {{
       const btn = document.getElementById("af-next");

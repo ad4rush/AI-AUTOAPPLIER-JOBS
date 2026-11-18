@@ -82,13 +82,13 @@ def run_pipeline_cycle(
     # Filter to candidate jobs that passed evaluation
     candidate_jobs = [
         j for j in evaluated_jobs
-        if (j.get("priority_level") in ("CRITICAL_PRIORITY", "HIGH_PRIORITY") and j.get("match_score", 0) >= 65)
-        or (j.get("priority_level") == "NORMAL" and j.get("match_score", 0) >= 60 and j.get("decision") in ("AUTO_APPLY", "STAGE"))
+        if (j.get("priority_level") in ("CRITICAL_PRIORITY", "HIGH_PRIORITY") and j.get("match_score", 0) >= 70)
+        or (j.get("priority_level") == "NORMAL" and j.get("match_score", 0) >= 70 and j.get("decision") in ("AUTO_APPLY", "STAGE"))
     ]
 
     # If newly evaluated jobs are fewer than apply limit, backfill from top pending EVALUATED jobs in DB
     if len(candidate_jobs) < apply_limit:
-        db_pending = get_pending_priority_jobs(limit=apply_limit * 3, min_score=60)
+        db_pending = get_pending_priority_jobs(limit=apply_limit * 3, min_score=70)
         seen_jids = {j["job_id"] for j in candidate_jobs}
         for dj in db_pending:
             if dj["job_id"] not in seen_jids:
@@ -139,8 +139,7 @@ def run_pipeline_cycle(
             continue
 
         if "mercor" in co.lower() and ("grant" in title.lower() or "benchmark" in title.lower()):
-            print(f"[*] Skipping [{co}] {title} (User directive: keep Mercor benchmarks staged)")
-            continue
+            print(f"[🔔 MERCOR OPENING ALERT] Discovered Mercor opportunity: [{co}] {title} -> {url}")
 
         if "openai" in co.lower():
             print(f"[*] Skipping [{co}] {title} (Ashby 180-day 5-submission limit reached across OpenAI roles)")
@@ -176,11 +175,10 @@ def run_pipeline_cycle(
                 print(f"[!] Warning: Custom resume compilation error ({e}). Falling back to master archetype.")
 
         if not resume_pdf:
-            archetype = ai_info.get("recommended_master_resume") or ai_info.get("archetype") or "RESUME_1_AI_ENGINEER"
-            resume_pdf = PROJECT_ROOT / "master_resumes" / f"{archetype}.pdf"
-            if not resume_pdf.exists():
-                resume_pdf = PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf"
-            print(f"[*] Standard role (not custom-worthy): Using master archetype {resume_pdf.name}")
+            from engine.resume_router import resolve_resume_and_metadata
+            routed_meta = resolve_resume_and_metadata(company=co, title=title, jd_text=db_job.get("description", "") or title, job_id=jid, url=url)
+            resume_pdf = Path(routed_meta.get("resume_path"))
+            print(f"[*] Dynamic archetype selection: {routed_meta.get('archetype')} -> {resume_pdf.name} ({routed_meta.get('notes')})")
 
         ats = detect_ats_type(url)
         should_submit = auto_submit or is_remote
@@ -188,8 +186,26 @@ def run_pipeline_cycle(
         print(f"    Portal Type: {ats} | Flow: {'Auto-Submit' if should_submit else 'Stage in ego-browser'}")
 
         # Dispatch application via verified procedure registry
-        res = dispatch_application(company=co, url=url, resume_path=str(resume_pdf), submit=should_submit)
+        res = dispatch_application(company=co, url=url, resume_path=str(resume_pdf), submit=should_submit, job_id=jid, title=title)
         success = res.get("success", False) if isinstance(res, dict) else False
+
+        # Duplicate-application guard (engine/dedup.py): a blocked or already-submitted
+        # job must never be handed to a fallback worker, or it would be applied to twice.
+        if isinstance(res, dict) and (res.get("duplicate") or res.get("in_progress")):
+            print(f"[*] Skipping [{co}] {title} - {res.get('error')}")
+            if res.get("duplicate") and res.get("duplicate_of") != jid:
+                update_job_status(jid, "SKIPPED", {
+                    "priority_level": "SKIP",
+                    "notes": f"Duplicate application blocked: {res.get('error')}"
+                })
+            continue
+        if isinstance(res, dict) and res.get("submit_attempted") and not success:
+            print(f"[!] [{co}] {title}: submit was clicked but not confirmed. Marked SUBMIT_UNCONFIRMED; not retrying.")
+            update_job_status(jid, "SUBMIT_UNCONFIRMED", {
+                "applied_at": datetime.now().isoformat(),
+                "notes": "Submit clicked but no confirmation detected. Verify manually; will not be re-applied."
+            })
+            continue
 
         if not success:
             print(f"[*] Standard engine returned non-success. Delegating [{co}] {title} to autonomous AGY worker agent...")
@@ -266,7 +282,7 @@ def process_pending_jobs_queue(limit: int = 5, auto_submit: bool = True) -> List
             print(f"[!] Warning during queue evaluation: {e}")
 
     # 2. Any pending priority jobs in EVALUATED?
-    pending_priority = get_pending_priority_jobs(limit=limit)
+    pending_priority = get_pending_priority_jobs(limit=limit, min_score=70)
     if not pending_priority:
         return []
 
@@ -284,9 +300,55 @@ def process_pending_jobs_queue(limit: int = 5, auto_submit: bool = True) -> List
             continue
 
         if "mercor" in co.lower() and ("grant" in title.lower() or "benchmark" in title.lower()):
-            continue
+            print(f"[🔔 MERCOR OPENING ALERT] Queue Worker processing Mercor opportunity: [{co}] {title} -> {url}")
         if "openai" in co.lower():
             continue
+
+        # -------------------------------------------------------------
+        # MANDATORY AI & EXPERIENCE VERIFICATION GATE
+        # -------------------------------------------------------------
+        raw_jd = db_job.get("description", "") or db_job.get("raw_jd", "") or ""
+        if not raw_jd and db_job.get("raw_jd_path") and Path(db_job["raw_jd_path"]).exists():
+            try:
+                raw_jd = Path(db_job["raw_jd_path"]).read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        is_early_career = any(k in title.lower() for k in [
+            "junior", "early career", "new grad", "university grad", "associate",
+            "entry level", "entry-level", "graduate", "software engineer 1",
+            "software engineer i", "ai engineer 1", "ai engineer i", "swe 1",
+            "swe i", "sde 1", "sde i", "l1", "mts 1", "mts i", "intern",
+            "internship", "research intern", "applied scientist 1"
+        ])
+
+        # 1. Strict experience parsing check (0-2 yrs limit for candidate)
+        from engine.evaluator import parse_experience_requirements
+        min_years, max_years, exp_label = parse_experience_requirements(raw_jd.lower())
+        if min_years > 2 and not is_early_career:
+            print(f"[*] [Experience Guard] Skipping [{co}] {title}: Requires {exp_label}. Candidate limit is 0-2 yrs.")
+            update_job_status(jid, "SKIPPED", {
+                "notes": f"Experience mismatch: Role requires {exp_label}. Candidate limit: 0-2 yrs.",
+                "priority_level": "SKIP"
+            })
+            continue
+
+        # 2. AI / ChatGPT Consultation Gate
+        from engine.chatgpt_consultant import consult_ai_which_to_apply
+        try:
+            ai_evals = consult_ai_which_to_apply([db_job])
+            if ai_evals:
+                ai_decision = ai_evals[0]
+                if not (ai_decision.get("should_apply") or ai_decision.get("apply")):
+                    reason = ai_decision.get("reason") or "Experience/Role mismatch"
+                    print(f"[*] [AI Gate Block] Skipping [{co}] {title}: AI rejected ({reason}).")
+                    update_job_status(jid, "SKIPPED", {
+                        "notes": f"AI consultation rejected: {reason}",
+                        "priority_level": "SKIP"
+                    })
+                    continue
+        except Exception as e:
+            print(f"[!] Warning: AI gate consultation error: {e}")
 
         is_remote = "remote" in title.lower() or "contract" in title.lower() or "global" in loc.lower() or "remote" in loc.lower()
         should_submit = auto_submit or is_remote
@@ -316,18 +378,43 @@ def process_pending_jobs_queue(limit: int = 5, auto_submit: bool = True) -> List
                 print(f"[!] Warning: Claude tailoring error ({e}). Falling back to master archetype.")
 
         if not resume_pdf:
-            arch = db_job.get("archetype") or "RESUME_1_AI_ENGINEER"
-            resume_pdf = PROJECT_ROOT / "master_resumes" / f"{arch}.pdf"
-            if not resume_pdf.exists():
-                resume_pdf = PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf"
-            print(f"[*] [Queue Worker] Standard role: Using master archetype {resume_pdf.name}")
+            from engine.resume_router import resolve_resume_and_metadata
+            routed_meta = resolve_resume_and_metadata(company=co, title=title, jd_text=db_job.get("description", "") or title, job_id=jid, url=url)
+            resume_pdf = Path(routed_meta.get("resume_path"))
+            print(f"[*] [Queue Worker] Dynamic archetype selection: {routed_meta.get('archetype')} -> {resume_pdf.name} ({routed_meta.get('notes')})")
 
         ats = detect_ats_type(url)
         print(f"\n[Queue Worker] Processing priority job: [{co}] {title}")
         print(f"               Portal: {ats} | Submit Mode: {should_submit}")
 
-        res = dispatch_application(company=co, url=url, resume_path=str(resume_pdf), submit=should_submit)
+        try:
+            res = dispatch_application(company=co, url=url, resume_path=str(resume_pdf), submit=should_submit, job_id=jid, title=title)
+        except Exception as e:
+            print(f"[!] Dispatch error for [{co}] {title}: {e}")
+            update_job_status(jid, "FAILED", {
+                "notes": f"Dispatch engine error: {e}"
+            })
+            continue
+
         success = res.get("success", False) if isinstance(res, dict) else False
+
+        # Duplicate-application guard (engine/dedup.py): a blocked or already-submitted
+        # job must never be handed to a fallback worker, or it would be applied to twice.
+        if isinstance(res, dict) and (res.get("duplicate") or res.get("in_progress")):
+            print(f"[*] Skipping [{co}] {title} - {res.get('error')}")
+            if res.get("duplicate") and res.get("duplicate_of") != jid:
+                update_job_status(jid, "SKIPPED", {
+                    "priority_level": "SKIP",
+                    "notes": f"Duplicate application blocked: {res.get('error')}"
+                })
+            continue
+        if isinstance(res, dict) and res.get("submit_attempted") and not success:
+            print(f"[!] [{co}] {title}: submit was clicked but not confirmed. Marked SUBMIT_UNCONFIRMED; not retrying.")
+            update_job_status(jid, "SUBMIT_UNCONFIRMED", {
+                "applied_at": datetime.now().isoformat(),
+                "notes": "Submit clicked but no confirmation detected. Verify manually; will not be re-applied."
+            })
+            continue
 
         if not success:
             print(f"[*] Standard engine returned non-success. Delegating [{co}] {title} to autonomous AGY worker...")
@@ -342,17 +429,27 @@ def process_pending_jobs_queue(limit: int = 5, auto_submit: bool = True) -> List
                 archetype=Path(resume_pdf).stem,
                 sync=False
             )
-            update_job_status(jid, "DISPATCHED", {
-                "notes": f"Delegated to autonomous AGY worker agent with --dangerously-skip-permissions. Log: {Path(del_res.get('log_file', '')).name}"
-            })
-            dispatched.append({"job_id": jid, "company": co, "status": "DISPATCHED_TO_AGY"})
+            if del_res.get("throttled"):
+                print(f"[*] Worker capacity full for [{co}] {title}. Retaining in EVALUATED queue.")
+                update_job_status(jid, "EVALUATED", {
+                    "notes": f"Throttled: 1 worker already active. Will retry in next queue run."
+                })
+            else:
+                update_job_status(jid, "DISPATCHED", {
+                    "notes": f"Delegated to autonomous AGY worker agent with --dangerously-skip-permissions. Log: {Path(del_res.get('log_file', '')).name}"
+                })
+                dispatched.append({"job_id": jid, "company": co, "status": "DISPATCHED_TO_AGY"})
         else:
-            new_status = "APPLIED" if should_submit else "STAGED_FOR_REVIEW"
+            is_submitted = bool(res.get("submitted", False))
+            new_status = "APPLIED" if (should_submit and is_submitted) else "STAGED_FOR_REVIEW"
             update_job_status(jid, new_status, {
-                "applied_at": datetime.now().isoformat() if should_submit else None,
+                "applied_at": datetime.now().isoformat() if (new_status == "APPLIED") else None,
                 "notes": f"{new_status} via automated pipeline queue dispatch ({ats})"
             })
             dispatched.append({"job_id": jid, "company": co, "status": new_status})
+
+        # Mandatory cooldown between applications to let ego-browser recover
+        time.sleep(10)
 
     if dispatched:
         check_and_process_submissions()

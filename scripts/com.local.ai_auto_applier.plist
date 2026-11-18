@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.adarsh.ai_auto_applier</string>
+    <string>{{SERVICE_LABEL}}</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>

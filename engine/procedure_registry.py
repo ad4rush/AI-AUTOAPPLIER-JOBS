@@ -750,6 +750,38 @@ def dispatch_application(
     jd_text: Optional[str] = None
 ) -> Dict[str, Any]:
     """
+    Guarded entry point for every application. Refuses a job that was already
+    applied to, is staged or dispatched under another row, or is being applied
+    to by another process right now (see engine/dedup.py). The returned dict
+    carries duplicate / in_progress / submit_attempted / final_status.
+    """
+    from engine.dedup import ApplicationGuard
+
+    with ApplicationGuard(
+        url=url, company=company or "", title=title or "", job_id=job_id or "",
+        submit=submit, source="dispatch_application"
+    ) as guard:
+        if not guard.allowed:
+            print(f"[Dedup] Not applying to {company or url}: {guard.reason} - {guard.detail}")
+            return guard.blocked_result()
+        res = _dispatch_application_unguarded(
+            company=company, url=url, resume_path=resume_path, submit=submit,
+            task_space=task_space, job_id=job_id, title=title, jd_text=jd_text
+        )
+        return guard.annotate(res)
+
+
+def _dispatch_application_unguarded(
+    company: str,
+    url: str,
+    resume_path: Optional[str] = None,
+    submit: bool = False,
+    task_space: Optional[str] = None,
+    job_id: Optional[str] = None,
+    title: Optional[str] = None,
+    jd_text: Optional[str] = None
+) -> Dict[str, Any]:
+    """
     The unified execution router. Looks up the memorized apply procedure for the
     company/URL, executes the appropriate engine, records the result in memory,
     and returns the execution status.
@@ -935,7 +967,8 @@ def dispatch_application(
         res = execute_intelligent_application(url=url, company=company, title=effective_title, jd_text=effective_jd, resume_path=resume_path, submit=submit, task_space_name=tspace, job_id_db=job_id)
 
     # Record event in procedure memory
-    status_str = "APPLIED" if (res.get("success") and submit) else ("STAGED_FOR_REVIEW" if res.get("success") else "FAILED")
+    is_submitted = bool(res.get("submitted", False)) if isinstance(res, dict) else False
+    status_str = "APPLIED" if (is_submitted and submit) else ("STAGED_FOR_REVIEW" if (res.get("success") or res.get("staged")) else "FAILED")
     record_apply_event(
         company=company,
         job_url=url,

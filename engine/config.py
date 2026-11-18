@@ -24,7 +24,6 @@ EGO_BROWSER_MAIN_PROFILE_ID = "Profile 1"  # "Main Profile" (Personal)
 EGO_BROWSER_COLLEGE_PROFILE_ID = "Profile 2"  # "COLLEGE PROFILE" (College)
 
 # Dedicated Remote/Contract Job Applier Agent (Handoff Target)
-REMOTE_AGENT_CONVERSATION_ID = "d5f399de-bcf3-4f7f-a9d4-233a20113449"
 REMOTE_AGENT_TITLE = "Automated Remote Job Application Process"
 
 # Helper to load .env with absolute guarantee across all working directories
@@ -69,17 +68,17 @@ CANDIDATE_PHONE = os.getenv("CANDIDATE_PHONE", "")
 CANDIDATE_PHONE_PLAIN = os.getenv("CANDIDATE_PHONE_PLAIN", "")
 CANDIDATE_LOCATION = os.getenv("CANDIDATE_LOCATION", "")
 CANDIDATE_CITY = os.getenv("CANDIDATE_CITY", "")
+CANDIDATE_ADDRESS = os.getenv("CANDIDATE_ADDRESS", "")
 CANDIDATE_ZIP = os.getenv("CANDIDATE_ZIP", "")
-if not CANDIDATE_ZIP:
+if not CANDIDATE_ZIP and CANDIDATE_ADDRESS:
     import re
     _m = re.search(r'\b\d{6}\b', CANDIDATE_ADDRESS)
     if _m:
         CANDIDATE_ZIP = _m.group(0)
-CANDIDATE_ADDRESS = os.getenv("CANDIDATE_ADDRESS", "")
 CANDIDATE_FULL_LOCATION = os.getenv("CANDIDATE_FULL_LOCATION", "")
 CANDIDATE_LINKEDIN = os.getenv("CANDIDATE_LINKEDIN", "")
 CANDIDATE_GITHUB = os.getenv("CANDIDATE_GITHUB", "")
-CANDIDATE_PORTFOLIO = os.getenv("CANDIDATE_PORTFOLIO", "https://ad4rush.github.io/PortFolio/")
+CANDIDATE_PORTFOLIO = os.getenv("CANDIDATE_PORTFOLIO", "")
 CANDIDATE_CURRENT_COMPANY = os.getenv("CANDIDATE_CURRENT_COMPANY", "")
 CANDIDATE_CURRENT_TITLE = os.getenv("CANDIDATE_CURRENT_TITLE", "")
 CANDIDATE_HONORS = os.getenv("CANDIDATE_HONORS", "")

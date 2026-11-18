@@ -20,10 +20,12 @@ from engine.config import (
     CANDIDATE_GITHUB,
     CANDIDATE_LINKEDIN,
     CANDIDATE_PORTFOLIO,
+    CANDIDATE_LOCATION,
     CANDIDATE_CITY,
     CANDIDATE_CURRENT_COMPANY,
     CANDIDATE_CURRENT_TITLE,
     ANS_COLLEGE,
+    FORBIDDEN_PLACEHOLDERS,
     assert_real_candidate_profile
 )
 from engine.db import update_job_status
@@ -56,8 +58,6 @@ def inject_candidate_profile(latex_str: str) -> str:
     res = res.replace("github.com/username", clean_github)
     res = res.replace("https://linkedin.com/in/username", CANDIDATE_LINKEDIN)
     res = res.replace("linkedin.com/in/username", clean_linkedin)
-    res = res.replace("https://ad4rush.github.io/PortFolio/", CANDIDATE_PORTFOLIO)
-    res = res.replace("ad4rush.github.io/PortFolio", clean_portfolio)
     res = res.replace("https://portfolio.example.com", CANDIDATE_PORTFOLIO)
     res = res.replace("portfolio.example.com", clean_portfolio)
     res = res.replace("San Francisco, CA / Remote", CANDIDATE_CITY)
@@ -85,7 +85,7 @@ def select_specialization_resume(title: str, jd: str, use_chatgpt: bool = False)
     4. General Software Engineering
     """
     text = (title + " " + jd).lower()
-    
+
     # Optional ChatGPT consultation for ambiguous or high-value roles
     if use_chatgpt:
         try:
@@ -570,3 +570,31 @@ def construct_fallback_tailored_latex(company: str, title: str, jd: str) -> str:
 \end{document}
 """
     return inject_candidate_profile(raw_tex)
+
+def tailor_and_compile_resume_with_claude(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Convenience wrapper for the queue worker and pipeline to tailor a custom resume
+    for high-tier roles using Claude Sonnet 3.5.
+    """
+    jid = job.get("job_id", "")
+    company = job.get("company", "")
+    title = job.get("title", "")
+    jd_path = job.get("raw_jd_path", "")
+    jd_text = ""
+    if jd_path and Path(jd_path).exists():
+        try:
+            with open(jd_path, "r", encoding="utf-8") as f:
+                jd_text = f.read()
+        except Exception:
+            pass
+    if not jd_text:
+        jd_text = job.get("notes", "") or title
+
+    success, notes, tex_path, pdf_path = generate_tailored_resume_via_claude(jid, company, title, jd_text)
+    if success and pdf_path and Path(pdf_path).exists():
+        return {
+            "pdf_path": str(pdf_path),
+            "tex_path": str(tex_path) if tex_path else None,
+            "notes": notes
+        }
+    return None

@@ -10,7 +10,7 @@ This repository provides an end-to-end autonomous job hunting and auto-applicati
 - **CLI Orchestrator:** `cli.py`
 - **MCP Server:** `engine/mcp/agy_terminal_mcp.py`
 - **Database:** `data/jobs.db` (SQLite with WAL mode)
-- **Watcher Daemon:** `engine/submission_watcher.py` (running under launchd as `com.adarsh.ai_auto_applier`)
+- **Watcher Daemon:** `engine/submission_watcher.py` (running under launchd as `com.local.ai_auto_applier`)
 
 ## Non-Negotiable Operational Principles
 1. **Dynamic Candidate Credentials:** Never hardcode personal credentials or contact details. All data is loaded dynamically from `.env` via `engine.config`.

@@ -235,11 +235,13 @@ console.log("[Lever-Apply] Validation Status:", JSON.stringify(validation, null,
 const submitMode = {str(submit).lower()};
 if (submitMode) {{
   if (validation.submitBtnFound && validation.submitBtnEnabled) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[Lever-Apply] SUBMIT MODE: Submitting application...");
     await page.click("button#btn-submit, button[type='submit'], .postings-btn");
     await page.waitForTimeout(5000);
     console.log("[Lever-Apply] Application submitted successfully!");
   }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
     console.log("[Lever-Apply] Cannot submit: submit button not ready or required fields missing.");
   }}
 }} else {{

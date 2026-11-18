@@ -9,11 +9,11 @@ description: Autonomous job hunting, resume tailoring, and multi-company auto-ap
 
 This autonomous platform continuously monitors, scrapes, evaluates, dynamically tailors LaTeX resumes for, and auto-applies to top software and AI engineering positions for the candidate.
 
-- **Repository Root:** `/Users/adarsh/job_finder_applier`
-- **CLI Entrypoint:** [`cli.py`](file:///Users/adarsh/job_finder_applier/cli.py)
-- **Database:** SQLite at [`data/jobs.db`](file:///Users/adarsh/job_finder_applier/data/jobs.db) with WAL mode enabled.
-- **Persistent Daemon:** macOS `launchd` service `com.adarsh.ai_auto_applier` running 24/7 via `~/Library/LaunchAgents/com.adarsh.ai_auto_applier.plist`.
-- **MCP Server:** [`engine/mcp/agy_terminal_mcp.py`](file:///Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py) registered in `~/.gemini/config/mcp_config.json`.
+- **Repository Root:** `~/job_finder_applier`
+- **CLI Entrypoint:** [`cli.py`](cli.py)
+- **Database:** SQLite at [`data/jobs.db`](data/jobs.db) with WAL mode enabled.
+- **Persistent Daemon:** macOS `launchd` service `com.local.ai_auto_applier` running 24/7 via `~/Library/LaunchAgents/com.local.ai_auto_applier.plist`.
+- **MCP Server:** [`engine/mcp/agy_terminal_mcp.py`](engine/mcp/agy_terminal_mcp.py) registered in `~/.gemini/config/mcp_config.json`.
 
 ### Non-Negotiable Operational Policies:
 1. **Zero Credential Hardcoding:** All candidate details (name, email, phone, LinkedIn, GitHub, city, CTC) dynamically resolve from `.env` via `engine/config.py`. Never hardcode candidate data in scripts or templates. Never push `.env` to remote GitHub.
@@ -55,7 +55,7 @@ python3 cli.py check-emails --profile college --limit 5
 
 ## 3. Master Resumes & Specialization Archetypes
 
-All master templates are stored in [`master_resumes/`](file:///Users/adarsh/job_finder_applier/master_resumes) and compile strictly to **exactly 1 page** via Tectonic XeTeX:
+All master templates are stored in [`master_resumes/`](master_resumes) and compile strictly to **exactly 1 page** via Tectonic XeTeX:
 
 ### 3.1 The 4 Specialization Archetypes
 1. **`RESUME_1_AI_ENGINEER.tex`** (`master_resumes/RESUME_1_AI_ENGINEER.tex`):
@@ -72,7 +72,7 @@ All master templates are stored in [`master_resumes/`](file:///Users/adarsh/job_
    - **Key Focus:** Full-stack development, CS fundamentals, competitive programming, and engineering foundation.
 
 ### 3.2 Master Candidate Dossier
-- **Path:** [`master_resume/MASTER_PROFILE.md`](file:///Users/adarsh/job_finder_applier/master_resume/MASTER_PROFILE.md)
+- **Path:** [`master_resume/MASTER_PROFILE.md`](master_resume/MASTER_PROFILE.md)
 - Contains complete verified metrics, numbers, KAM note details, grant amounts, and comprehensive technical tools.
 
 ### 3.3 Tailoring Policy (When to Tailor vs Direct Use)
@@ -101,7 +101,7 @@ python3 cli.py tailor-claude --company Inngest --job-id inngest_distributed_syst
 
 The platform queries the candidate's authenticated ChatGPT session in **Profile 1** (Personal Profile) to screen jobs and generate punchy, metric-grounded application answers:
 
-- **Codepath:** [`engine/chatgpt_consultant.py`](file:///Users/adarsh/job_finder_applier/engine/chatgpt_consultant.py)
+- **Codepath:** [`engine/chatgpt_consultant.py`](engine/chatgpt_consultant.py)
 - **Key Functions:**
   - `query_chatgpt(prompt, timeout_sec)`: General query against live ChatGPT composer.
   - `generate_application_pitch(company, title, jd)`: Generates 3-sentence application pitch.
@@ -121,7 +121,7 @@ python3 cli.py generate-pitch --company Inngest --title "Distributed Systems Eng
 
 The engine memorizes each company's exact application procedure, ATS engine, authentication quirks, and custom question answers:
 
-- **Codepath:** [`engine/procedure_registry.py`](file:///Users/adarsh/job_finder_applier/engine/procedure_registry.py)
+- **Codepath:** [`engine/procedure_registry.py`](engine/procedure_registry.py)
 - **Commands:**
 ```bash
 # List all memorized company procedures
@@ -144,7 +144,7 @@ python3 cli.py record-procedure \
 
 ## 6. Agent Dispatch & Conversation Thread Tracking
 
-Whenever an agent (AGY subagent, Claude tailor, or browser worker) works on a company's role, the conversation ID is tracked in SQLite table `agent_dispatches` in [`data/jobs.db`](file:///Users/adarsh/job_finder_applier/data/jobs.db):
+Whenever an agent (AGY subagent, Claude tailor, or browser worker) works on a company's role, the conversation ID is tracked in SQLite table `agent_dispatches` in [`data/jobs.db`](data/jobs.db):
 
 - **Purpose:** When subsequent roles for that same company appear in the future, the agent can query prior dispatches and resume that exact conversation thread (`agy --conversation <id>`).
 
@@ -169,12 +169,12 @@ python3 cli.py list-dispatches --limit 20
 
 The MCP server exposes autonomous agent execution, ChatGPT consultation, Claude tailoring, and procedure dispatch tools to Antigravity agents:
 
-- **Script:** [`engine/mcp/agy_terminal_mcp.py`](file:///Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py)
-- **Configuration:** [`/Users/adarsh/.gemini/config/mcp_config.json`](file:///Users/adarsh/.gemini/config/mcp_config.json)
+- **Script:** [`engine/mcp/agy_terminal_mcp.py`](engine/mcp/agy_terminal_mcp.py)
+- **Configuration:** [`~/.gemini/config/mcp_config.json`](file://~/.gemini/config/mcp_config.json)
 - **Stdio Transport:** Speaks JSON-RPC 2.0. Standard output is strictly reserved for JSON-RPC messages; all logs write to `sys.stderr`.
 
 ### Available MCP Tools:
-1. `spawn_agy_worker`: Spawns an unattended AGY subagent (`agy -p ... --dangerously-skip-permissions`) in `/Users/adarsh/job_finder_applier`. Supports `--conversation <id>` to resume company threads.
+1. `spawn_agy_worker`: Spawns an unattended AGY subagent (`agy -p ... --dangerously-skip-permissions`) in `~/job_finder_applier`. Supports `--conversation <id>` to resume company threads.
 2. `consult_chatgpt`: Direct query to candidate's authenticated ChatGPT session in Profile 1.
 3. `generate_application_pitch`: Generates 3-sentence application pitch via ChatGPT.
 4. `apply_to_job`: Executes automated application flow using memorized procedure.
@@ -191,17 +191,17 @@ The MCP server exposes autonomous agent execution, ChatGPT consultation, Claude 
 
 The autonomous watcher and scraper daemon runs persistently via macOS `launchd`:
 
-- **Plist Location:** `~/Library/LaunchAgents/com.adarsh.ai_auto_applier.plist`
+- **Plist Location:** `~/Library/LaunchAgents/com.local.ai_auto_applier.plist`
 - **Configuration:** `RunAtLoad=true`, `KeepAlive=true`.
-- **Startup Command:** `/usr/bin/python3 /Users/adarsh/job_finder_applier/cli.py daemon --interval 4.5 --jitter 0.75 --watcher-interval 10.0`
-- **Stdout Log:** [`data/daemon_stdout.log`](file:///Users/adarsh/job_finder_applier/data/daemon_stdout.log)
-- **Stderr Log:** [`data/daemon_stderr.log`](file:///Users/adarsh/job_finder_applier/data/daemon_stderr.log)
+- **Startup Command:** `/usr/bin/python3 ~/job_finder_applier/cli.py daemon --interval 4.5 --jitter 0.75 --watcher-interval 10.0`
+- **Stdout Log:** [`data/daemon_stdout.log`](data/daemon_stdout.log)
+- **Stderr Log:** [`data/daemon_stderr.log`](data/daemon_stderr.log)
 
 ```bash
 # Verify daemon status
-launchctl list | grep adarsh
+launchctl list | grep ai_auto_applier
 
 # Reload daemon if needed
-launchctl unload ~/Library/LaunchAgents/com.adarsh.ai_auto_applier.plist
-launchctl load -w ~/Library/LaunchAgents/com.adarsh.ai_auto_applier.plist
+launchctl unload ~/Library/LaunchAgents/com.local.ai_auto_applier.plist
+launchctl load -w ~/Library/LaunchAgents/com.local.ai_auto_applier.plist
 ```

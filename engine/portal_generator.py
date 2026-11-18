@@ -170,9 +170,12 @@ def apply_{safe_company}(
     submit: bool = {str(is_remote_contract)},
     task_space_name: str = "{safe_company}_auto_apply"
 ) -> Dict[str, Any]:
-    if not resume_path:
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
-    resume_abs = str(Path(resume_path).resolve())
+    if not resume_path or not Path(resume_path).exists():
+        from engine.resume_router import resolve_resume_and_metadata
+        meta = resolve_resume_and_metadata(company="{company}", title="Software Engineer", url=url)
+        resume_abs = meta.get("resume_path")
+    else:
+        resume_abs = str(Path(resume_path).resolve())
 
     node_script = f"""(async () => {{{{
 const spaces = await listTaskSpaces();

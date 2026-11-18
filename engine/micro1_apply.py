@@ -39,9 +39,12 @@ def apply_to_micro1_job(
     """
     Executes automated application flow for micro1 roles.
     """
-    if not resume_path:
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
-    resume_abs = str(Path(resume_path).resolve())
+    if not resume_path or not Path(resume_path).exists():
+        from engine.resume_router import resolve_resume_and_metadata
+        meta = resolve_resume_and_metadata(company="Micro1", title="AI / Python Engineer", url=url)
+        resume_abs = meta.get("resume_path")
+    else:
+        resume_abs = str(Path(resume_path).resolve())
 
     # Build answers payload
     answers = {
@@ -210,6 +213,7 @@ def apply_to_micro1_job(
   console.log("[micro1] Validation:", JSON.stringify(validation));
 
   if ({str(submit).lower()} && validation.submitFound && !validation.submitDisabled) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[micro1] SUBMIT MODE: Clicking Submit...");
     await page.click("button:has-text('Submit')");
     await page.waitForTimeout(6000);

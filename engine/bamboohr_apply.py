@@ -292,6 +292,7 @@ def apply_to_bamboohr_job(
         console.log("[BambooHR-Apply] Note on handoff: " + e.message);
       }}
     }} else if (validation.hasSubmitBtn && !validation.submitBtnDisabled && validation.errorsCount === 0) {{
+      console.log("[[SUBMIT_CLICK_ATTEMPT]]");
       console.log("[BambooHR-Apply] Executing form submission...");
       await page.evaluate(() => {{
         const submitBtn = Array.from(document.querySelectorAll("button, input[type='submit']")).find(b => 

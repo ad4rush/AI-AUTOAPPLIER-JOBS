@@ -106,7 +106,7 @@ An autonomous, multi-tier AI job hunting, evaluation, dynamic LaTeX resume tailo
 ### 3.2 Installation & Setup
 1. **Clone the repository:**
    ```bash
-   git clone git@github.com:ad4rush/AI-AUTOAPPLIER-JOBS.git
+   git clone <repository-url>
    cd AI-AUTOAPPLIER-JOBS
    ```
 

@@ -227,6 +227,12 @@ def insert_job(job: Dict[str, Any], refresh_summary: bool = False) -> bool:
         VALUES (?, 'DISCOVERED', ?, ?)
         """, (job["job_id"], f"Job found from {job.get('source')}", now))
         conn.commit()
+        try:
+            from engine.dedup import record_job_identity
+            record_job_identity(job["job_id"], job.get("company", ""), job.get("title", ""), job.get("url", ""), conn=conn)
+            conn.commit()
+        except Exception:
+            pass
 
     conn.close()
     if inserted and refresh_summary:
@@ -285,7 +291,7 @@ def get_jobs_by_status(status: str) -> List[sqlite3.Row]:
     conn.close()
     return rows
 
-def get_pending_priority_jobs(limit: int = 30, min_score: int = 60) -> List[sqlite3.Row]:
+def get_pending_priority_jobs(limit: int = 30, min_score: int = 70) -> List[sqlite3.Row]:
     """Retrieves top unapplied jobs waiting in EVALUATED status, prioritizing Big Tech, India FTE, and global roles."""
     conn = get_db_connection()
     c = conn.cursor()
@@ -295,7 +301,6 @@ def get_pending_priority_jobs(limit: int = 30, min_score: int = 60) -> List[sqli
           AND priority_level IN ('CRITICAL_PRIORITY', 'HIGH_PRIORITY', 'NORMAL')
           AND match_score >= ?
           AND LOWER(company) NOT IN ('openai', 'google')
-          AND NOT (LOWER(company) = 'mercor' AND (LOWER(title) LIKE '%grant%' OR LOWER(title) LIKE '%benchmark%'))
         ORDER BY 
           CASE priority_level 
             WHEN 'CRITICAL_PRIORITY' THEN 1 

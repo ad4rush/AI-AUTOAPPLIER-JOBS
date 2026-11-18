@@ -33,9 +33,12 @@ def apply_turing(
     submit: bool = False,
     task_space_name: str = "turing_auto_apply"
 ) -> Dict[str, Any]:
-    if not resume_path:
-        resume_path = str(PROJECT_ROOT / "master_resumes" / "RESUME_1_AI_ENGINEER.pdf")
-    resume_abs = str(Path(resume_path).resolve())
+    if not resume_path or not Path(resume_path).exists():
+        from engine.resume_router import resolve_resume_and_metadata
+        meta = resolve_resume_and_metadata(company="Turing", title="Software Engineer", url=url)
+        resume_abs = meta.get("resume_path")
+    else:
+        resume_abs = str(Path(resume_path).resolve())
 
     node_script = f"""
 const spaces = await listTaskSpaces();
@@ -133,6 +136,7 @@ if (hasFile && "{resume_abs}") {{
 
 if ({str(submit).lower()}) {{
   console.log("[Turing-Apply] Submit requested...");
+  console.log("[[SUBMIT_CLICK_ATTEMPT]]");
   await page.evaluate(() => {{
     const btn = Array.from(document.querySelectorAll("button, input[type='submit']")).find(b => {{
       const t = (b.innerText || b.value || "").toLowerCase();
@@ -141,6 +145,8 @@ if ({str(submit).lower()}) {{
     if (btn) btn.click();
   }});
   await new Promise(r => setTimeout(r, 4000));
+}} else {{
+  console.log("[[SUBMIT_CLICK_NONE]]");
 }}
 
 console.log(JSON.stringify({{

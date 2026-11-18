@@ -13,7 +13,7 @@
 # - Master CLI: cli.py
 # - MCP Server: engine/mcp/agy_terminal_mcp.py (13 JSON-RPC tools)
 # - Database: data/jobs.db (SQLite with WAL mode)
-# - Daemon: launchd service com.adarsh.ai_auto_applier (PID tracked in launchctl)
+# - Daemon: launchd service com.local.ai_auto_applier (PID tracked in launchctl)
 # ==============================================================================
 
 # 2. NON-NEGOTIABLE OPERATIONAL SAFETY RULES

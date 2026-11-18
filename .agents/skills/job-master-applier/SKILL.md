@@ -10,14 +10,14 @@ description: Autonomous job discovery, JEV evaluation, Claude Sonnet 3.5 LaTeX r
 This platform provides an end-to-end autonomous job discovery, evaluation, dynamic LaTeX resume tailoring, and automated application system.
 
 - **Repository Root:** Dynamic via `JOB_APPLIER_ROOT` environment variable or git workspace root.
-- **Master CLI:** [`cli.py`](file:///Users/adarsh/job_finder_applier/cli.py)
+- **Master CLI:** [`cli.py`](cli.py)
 - **Database:** SQLite at `data/jobs.db` with WAL mode enabled.
-- **MCP Server:** [`engine/mcp/agy_terminal_mcp.py`](file:///Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py) (13 JSON-RPC tools).
-- **Daemon Watcher:** macOS `launchd` service `com.adarsh.ai_auto_applier` running 24/7 via `~/Library/LaunchAgents/com.adarsh.ai_auto_applier.plist`.
+- **MCP Server:** [`engine/mcp/agy_terminal_mcp.py`](engine/mcp/agy_terminal_mcp.py) (13 JSON-RPC tools).
+- **Daemon Watcher:** macOS `launchd` service `com.local.ai_auto_applier` running 24/7 via `~/Library/LaunchAgents/com.local.ai_auto_applier.plist`.
 
 ### Non-Negotiable Operational Principles
 1. **Dynamic Candidate Credentials:**
-   All candidate details (name, email, phone, LinkedIn, GitHub, location, expected CTC, form answers) load dynamically from `.env` via [`engine/config.py`](file:///Users/adarsh/job_finder_applier/engine/config.py). Never hardcode credentials into scripts or commit them to git.
+   All candidate details (name, email, phone, LinkedIn, GitHub, location, expected CTC, form answers) load dynamically from `.env` via [`engine/config.py`](engine/config.py). Never hardcode credentials into scripts or commit them to git.
 2. **Zero-Placeholder Circuit Breaker:**
    `assert_real_candidate_profile()` runs before staging or applying. If placeholder values exist, execution halts immediately.
 3. **Strict 1-Page XeTeX Rule:**
@@ -61,7 +61,7 @@ python3 cli.py check-emails --profile college --limit 5
 
 ## 3. Master Resumes & Specialization Archetypes
 
-All master templates reside in [`master_resumes/`](file:///Users/adarsh/job_finder_applier/master_resumes) and compile to 1 page via Tectonic:
+All master templates reside in [`master_resumes/`](master_resumes) and compile to 1 page via Tectonic:
 
 ### 3.1 The 4 Specialization Archetypes
 1. **`RESUME_1_AI_ENGINEER.tex`** (`master_resumes/RESUME_1_AI_ENGINEER.tex`):
@@ -78,7 +78,7 @@ All master templates reside in [`master_resumes/`](file:///Users/adarsh/job_find
    - **Key Focus:** Full-stack development, CS fundamentals, competitive programming, high-scalability platforms.
 
 ### 3.2 Master Dossier & Tailoring Rules
-- **Master Dossier:** [`master_resume/MASTER_PROFILE.md`](file:///Users/adarsh/job_finder_applier/master_resume/MASTER_PROFILE.md) contains verified metrics, architecture details, and project accomplishments.
+- **Master Dossier:** [`master_resume/MASTER_PROFILE.md`](master_resume/MASTER_PROFILE.md) contains verified metrics, architecture details, and project accomplishments.
 - **When to Tailor:**
   - Tailor via Claude Sonnet 3.5 when the target is a Tier-1 company FTE position or a high-suitability remote contract role.
   - Otherwise, select the best matching specialization archetype directly via `select_specialization_resume()` and compile with injected candidate `.env` credentials.
@@ -103,7 +103,7 @@ Empirically validated against Resume Worded's ATS reviewer:
 ## 4. ChatGPT Consultation Engine (Profile 1)
 
 The platform interacts with the candidate's authenticated ChatGPT session in **Profile 1**:
-- **Codepath:** [`engine/chatgpt_consultant.py`](file:///Users/adarsh/job_finder_applier/engine/chatgpt_consultant.py)
+- **Codepath:** [`engine/chatgpt_consultant.py`](engine/chatgpt_consultant.py)
 - **Functions:**
   - `query_chatgpt(prompt, timeout_sec)`: Direct prompt consultation.
   - `generate_application_pitch(company, title, jd)`: 3-sentence application pitch grounded in candidate experience metrics.
@@ -114,7 +114,7 @@ The platform interacts with the candidate's authenticated ChatGPT session in **P
 ## 5. Memorized Application Procedures
 
 The engine memorizes ATS characteristics, form schemas, and application procedures to eliminate guesswork:
-- **Registry:** [`engine/procedure_registry.py`](file:///Users/adarsh/job_finder_applier/engine/procedure_registry.py)
+- **Registry:** [`engine/procedure_registry.py`](engine/procedure_registry.py)
 - **Supported ATS:** Ashby, Greenhouse, Lever, Workday, Microsoft Careers, Stripe, Mercor.
 - **Commands:**
 ```bash
@@ -127,7 +127,7 @@ python3 cli.py record-procedure --company Inngest --ats ashby --policy STAGE_AND
 
 ## 6. Model Context Protocol (MCP) Server
 
-The MCP server resides in [`engine/mcp/agy_terminal_mcp.py`](file:///Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py) and provides 13 tools:
+The MCP server resides in [`engine/mcp/agy_terminal_mcp.py`](engine/mcp/agy_terminal_mcp.py) and provides 13 tools:
 
 | Tool | Purpose |
 |---|---|

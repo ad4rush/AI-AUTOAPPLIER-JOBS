@@ -13,6 +13,7 @@ verifies form validity, and stages or submits the application.
 import sys
 import re
 import json
+import os
 import argparse
 import subprocess
 from pathlib import Path
@@ -85,6 +86,11 @@ def normalize_greenhouse_url(url_or_id: str, company: Optional[str] = None) -> s
     # If it's just a numeric token and company is provided
     if url.isdigit() and company:
         return f"https://job-boards.greenhouse.io/embed/job_app?for={company.lower()}&token={url}"
+
+    # PubNub Jobicy or career portal mapping
+    if "pubnub" in url.lower() or (company and "pubnub" in company.lower()):
+        if "160992" in url or "8326911" in url or "developer-advocate" in url.lower():
+            return "https://job-boards.greenhouse.io/embed/job_app?for=pubnub&token=8326911"
 
     # Databricks with gh_jid
     if "databricks.com" in url and "gh_jid=" in url:
@@ -166,7 +172,13 @@ def apply_to_greenhouse_job(
 const spaces = await listTaskSpaces();
 const existing = spaces.find(s => s.name === "{task_space_name}");
 const task = existing ? await taskSpace(existing.id) : await taskSpace("{task_space_name}", {{ profileId: "{EGO_BROWSER_MAIN_PROFILE_ID}" }});
-const page = task.page("p1");
+let page;
+try {{
+  page = task.page("p1");
+  await page.evaluate(() => 1);
+}} catch (e) {{
+  page = await task.newPage();
+}}
 
 console.log("[GH-Apply] Navigating to Greenhouse URL: {target_url}");
 await page.goto("{target_url}", {{ waitUntil: "domcontentloaded", timeout: 35000 }});
@@ -180,7 +192,15 @@ async function selectReactCombobox(inputId, searchText, exactText) {{
   try {{
     const exists = await page.evaluate(id => !!document.getElementById(id), inputId);
     if (!exists) return null;
-    await page.click("#" + inputId);
+    await page.evaluate(id => {{
+      const el = document.getElementById(id);
+      if (el) {{
+        el.focus();
+        el.click();
+      }}
+    }}, inputId);
+    await page.waitForTimeout(250);
+    await page.keyboard.press("ArrowDown");
     await page.waitForTimeout(300);
     if (searchText) {{
       await page.keyboard.type(searchText);
@@ -312,6 +332,12 @@ await page.evaluate(() => {{
 
     if (lbl.includes("linkedin") && !inp.value) {{
       setVal(inp, "{CANDIDATE_LINKEDIN}");
+    }} else if ((lbl.includes("monthly compensation") || lbl.includes("expected monthly compensation") || lbl.includes("pln")) && !inp.value) {{
+      setVal(inp, "22,000 PLN");
+    }} else if ((lbl.includes("notice period") || lbl.includes("availability")) && !inp.value) {{
+      setVal(inp, "Immediately / 15-30 days");
+    }} else if ((lbl.includes("desired annual base salary") || lbl.includes("salary range") || lbl.includes("base salary")) && !inp.value) {{
+      setVal(inp, "$120,000 - $140,000");
     }} else if ((lbl.includes("github") || lbl.includes("website") || lbl.includes("portfolio")) && !inp.value) {{
       setVal(inp, "{CANDIDATE_GITHUB}");
     }} else if (lbl.includes("open source") || lbl.includes("projects")) {{
@@ -322,14 +348,28 @@ await page.evaluate(() => {{
       setVal(inp, "{CANDIDATE_CURRENT_COMPANY}");
     }} else if ((lbl.includes("current title") || lbl.includes("current role") || lbl.includes("headline")) && !inp.value) {{
       setVal(inp, "{CANDIDATE_CURRENT_TITLE}");
-    }} else if (lbl.includes("preferred name") || lbl.includes("preferred first name") || lbl.includes("nickname")) {{
-      setVal(inp, "{CANDIDATE_FIRST_NAME}");
+    }} else if (lbl.includes("preferred name") || lbl.includes("preferred first name") || lbl.includes("nickname") || lbl.includes("prefer us to use")) {{
+      setVal(inp, {json.dumps(CANDIDATE_NAME)});
+    }} else if ((lbl.includes("gitlab username") || (lbl.includes("gitlab") && lbl.includes("username"))) && !inp.value) {{
+      if ({json.dumps(os.getenv("CANDIDATE_GITLAB_USERNAME", ""))}) {{
+        setVal(inp, {json.dumps(os.getenv("CANDIDATE_GITLAB_USERNAME", ""))});
+      }}
     }} else if (lbl.includes("preferred location") || lbl.includes("location preference") || lbl.includes("office location")) {{
       setVal(inp, "Bengaluru, Hyderabad, Noida, Gurugram, Pune, Delhi NCR, India (All India Locations / Remote)");
     }} else if (lbl.includes("pronoun")) {{
       setVal(inp, "He/Him/His");
     }} else if (lbl.includes("right to work") || lbl.includes("unrestricted")) {{
       setVal(inp, "India");
+    }} else if (lbl.includes("degree result") || lbl.includes("expected result") || lbl.includes("grading system")) {{
+      setVal(inp, "CGPA score of 8.2/10.0 (B.Tech Computer Science and AI, IIIT-Delhi)");
+    }} else if (lbl.includes("high school performance") || lbl.includes("rationale or evidence") || lbl.includes("competitive or selective")) {{
+      setVal(inp, "Secured 99.5 percentile in JEE Mains (All India Rank 4778 out of 1.2+ million candidates nationally), CBSE Class 12 Senior Secondary Board Mathematics score of 95%+, and GATE Computer Science 2026 All India Rank 252 (top 0.1% nationally).");
+    }} else if (lbl.includes("openstack") || lbl.includes("related technologies")) {{
+      setVal(inp, "Architected and managed virtualized Linux environments (KVM/QEMU, Libvirt), private cloud orchestration, Docker and Kubernetes container runtimes, software-defined networking, and infrastructure automation using Python, Ansible, and Bash.");
+    }} else if (lbl.includes("linux and python") || (lbl.includes("linux") && lbl.includes("python"))) {{
+      setVal(inp, "4+ years building high-performance systems in Python, Go, C++, and Java across Ubuntu/Debian Linux environments. At TBO.com, engineered real-time production lakehouses (Kafka CDC, Spark, Glue, Hudi) and sub-second voice AI microservices with FastAPI and Docker. Development workflow: Neovim, VSCode, Git, tmux, PyTorch, Linux kernel/CLI tooling.");
+    }} else if (lbl.includes("vcs") || lbl.includes("links")) {{
+      setVal(inp, "{CANDIDATE_GITHUB}");
     }}
   }}
 
@@ -364,14 +404,35 @@ await page.evaluate(() => {{
 // 5. Select Comboboxes for Standard Custom Questions (Work Auth, Visa, Non-compete, Privacy, EEOC)
 const comboboxes = await page.evaluate(() => {{
   const cbs = Array.from(document.querySelectorAll("[role='combobox'], [id^='question_'], input[id='gender'], input[id='hispanic_ethnicity'], input[id='veteran_status']"));
-  return cbs.map(c => ({{ id: c.id, label: (c.closest('.field, div, label') ? c.closest('.field, div, label').innerText : '').toLowerCase() }}));
+  return cbs.map(c => {{
+    const parentField = c.closest('.field-wrapper, .field, fieldset');
+    const labelEl = c.id ? (document.querySelector(`label[for="${{c.id}}"]`) || document.getElementById(`${{c.id}}-label`)) : null;
+    const textLabel = labelEl ? labelEl.innerText : (parentField ? parentField.innerText : (c.closest('div') ? c.closest('div').innerText : ''));
+    return {{ id: c.id, label: textLabel.toLowerCase() }};
+  }});
 }});
 
 for (const cb of comboboxes) {{
   if (!cb.id) continue;
   if (cb.label.includes("country of residence")) {{
     await selectReactCombobox(cb.id, "India", "India");
+  }} else if (cb.label.includes("currently based in poland") || cb.label.includes("based in poland")) {{
+    await selectReactCombobox(cb.id, "No", "No");
+  }} else if (cb.label.includes("b2b contract") || cb.label.includes("b2b")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("true and accurate") || cb.label.includes("misleading information") || cb.label.includes("shared in my cv")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
   }} else if (cb.label.includes("located in india")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("background investigation") || cb.label.includes("investigation")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("years of professional") || cb.label.includes("platform engineering experience")) {{
+    await selectReactCombobox(cb.id, "2–3", "2–3 years");
+  }} else if (cb.label.includes("servicenow") || cb.label.includes("flow designer")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("gitlab ci/cd") || cb.label.includes("infrastructure as code")) {{
+    await selectReactCombobox(cb.id, "both", "Experience with both");
+  }} else if (cb.label.includes("rest api") || cb.label.includes("api integrations")) {{
     await selectReactCombobox(cb.id, "Yes", "Yes");
   }} else if (cb.label.includes("authorized") || cb.label.includes("eligib") || cb.label.includes("legally")) {{
     await selectReactCombobox(cb.id, "Yes", "Yes");
@@ -389,8 +450,36 @@ for (const cb of comboboxes) {{
     await selectReactCombobox(cb.id, "No", "No");
   }} else if (cb.label.includes("previously worked") || cb.label.includes("consulted")) {{
     await selectReactCombobox(cb.id, "No", "No");
-  }} else if (cb.label.includes("degree")) {{
+  }} else if (cb.label.includes("degree") || cb.id.includes("degree")) {{
     await selectReactCombobox(cb.id, "Bachelor", "Bachelor's Degree");
+  }} else if (cb.label.includes("agree to use only my own words") || cb.label.includes("plagiarism")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("mathematics at high school")) {{
+    await selectReactCombobox(cb.id, "Top 1%", "Top 1% in the region");
+  }} else if (cb.label.includes("native language at high school")) {{
+    await selectReactCombobox(cb.id, "Top 5%", "Top 5% at school");
+  }} else if (cb.label.includes("meet in person") || cb.label.includes("travel and entry requirement")) {{
+    await selectReactCombobox(cb.id, "Yes", "Yes");
+  }} else if (cb.label.includes("timezone")) {{
+    await selectReactCombobox(cb.id, "APAC", "APAC");
+  }} else if (cb.label.includes("canonical's recruitment privacy") || (cb.label.includes("recruitment privacy") && cb.label.includes("notice")) || cb.label.includes("privacy notice")) {{
+    await selectReactCombobox(cb.id, "Acknowledge", "Acknowledge/Confirm");
+  }} else if (cb.label.includes("currently work") || cb.label.includes("country do you currently work")) {{
+    await selectReactCombobox(cb.id, "India", "India");
+  }} else if (cb.label.includes("ten years") || cb.label.includes("how many companies")) {{
+    await selectReactCombobox(cb.id, "0", "0");
+  }} else if (cb.label.includes("nationality")) {{
+    await selectReactCombobox(cb.id, "Indian", "Indian");
+  }} else if (cb.label.includes("race or ethnicity") || cb.label.includes("race") || cb.label.includes("ethnicity")) {{
+    await selectReactCombobox(cb.id, "Asian", "Asian");
+  }} else if (cb.id.includes("school") || cb.label.includes("school")) {{
+    await selectReactCombobox(cb.id, "Indraprastha", "Indraprastha Institute of Information Technology");
+  }} else if (cb.id.includes("discipline") || cb.label.includes("discipline")) {{
+    await selectReactCombobox(cb.id, "Computer Science", "Computer Science");
+  }} else if (cb.label.includes("united states or canada") || cb.label.includes("reside in the united states")) {{
+    await selectReactCombobox(cb.id, "No", "No");
+  }} else if (cb.label.includes("disability")) {{
+    await selectReactCombobox(cb.id, "No", "No, I Do Not Have A Disability");
   }}
 }}
 
@@ -431,6 +520,7 @@ console.log("[GH-Apply] Validation Status:", JSON.stringify(validation, null, 2)
 const submitMode = {str(submit).lower()};
 if (submitMode) {{
   if (validation.submitBtnFound && validation.submitBtnEnabled) {{
+    console.log("[[SUBMIT_CLICK_ATTEMPT]]");
     console.log("[GH-Apply] SUBMIT MODE: Submitting application...");
     await page.click("button[type='submit'], input[type='submit']");
     await page.waitForTimeout(6000);
@@ -450,6 +540,7 @@ if (submitMode) {{
       console.log("[GH-Apply] Submitted application, confirmation recorded.");
     }}
   }} else {{
+    console.log("[[SUBMIT_CLICK_NONE]]");
     console.log("[GH-Apply] Cannot submit: submit button is not ready or has validation errors.");
   }}
 }} else {{
@@ -481,7 +572,12 @@ if (submitMode) {{
         print(output)
 
         submit_enabled = "submitBtnEnabled\": true" in output or "submitBtnEnabled: true" in output
-        success = ("Validation Status" in output) and (proc.returncode == 0)
+        is_confirmed = "\"confirmed\": true" in output or "application submitted successfully" in output.lower() or "/confirmation" in output
+
+        if submit:
+            success = is_confirmed and (proc.returncode == 0)
+        else:
+            success = ("Validation Status" in output) and (proc.returncode == 0)
 
         history_entry = {
             "target_url": target_url,
@@ -510,6 +606,7 @@ if (submitMode) {{
 
         return {
             "success": success,
+            "submitted": is_confirmed if submit else False,
             "submit_enabled": submit_enabled,
             "output": output
         }

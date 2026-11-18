@@ -6,7 +6,7 @@ This document specifies the architecture, protocol rules, tool definitions, and 
 
 ## 1. Protocol Architecture & Transport Specification
 
-The MCP server resides in [`engine/mcp/agy_terminal_mcp.py`](file:///Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py) and speaks **JSON-RPC 2.0** over **stdio** transport.
+The MCP server resides in [`engine/mcp/agy_terminal_mcp.py`](engine/mcp/agy_terminal_mcp.py) and speaks **JSON-RPC 2.0** over **stdio** transport.
 
 ### 1.1 Dual-Mode Transport Framing
 To guarantee seamless interoperability across diverse MCP host environments (Claude Desktop, Antigravity/AGY, Cursor, Windsurf, custom Python harnesses), the server implements dual-mode framing:
@@ -34,7 +34,7 @@ Add to `~/.gemini/config/mcp_config.json`:
   "mcpServers": {
     "job-applier-terminal": {
       "command": "python3",
-      "args": ["/Users/adarsh/job_finder_applier/engine/mcp/agy_terminal_mcp.py"],
+      "args": ["~/job_finder_applier/engine/mcp/agy_terminal_mcp.py"],
       "env": {
         "PYTHONUNBUFFERED": "1"
       }

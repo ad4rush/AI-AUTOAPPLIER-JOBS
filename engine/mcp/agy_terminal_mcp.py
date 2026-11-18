@@ -66,8 +66,8 @@ TOOLS = [
                 "effort": {
                     "type": "string",
                     "enum": ["low", "medium", "high", "xhigh", "max"],
-                    "description": "Reasoning effort level (defaults to high).",
-                    "default": "high"
+                    "description": "Reasoning effort level (defaults to medium).",
+                    "default": "medium"
                 },
                 "timeout_sec": {
                     "type": "integer",
@@ -311,6 +311,19 @@ TOOLS = [
         }
     },
     {
+        "name": "find_datanerd_jobs",
+        "description": "Scrapes real-time Data Engineer, Data Scientist, and AI/ML job postings from datanerd.tech for India (or other locations) with salary, direct ATS apply options, and required skills.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Job title/category on datanerd.tech (e.g. 'Data Engineer', 'Data Scientist', 'Machine Learning Engineer'). Default: 'Data Engineer'.", "default": "Data Engineer"},
+                "country": {"type": "string", "description": "Country filter (e.g. 'India'). Default: 'India'.", "default": "India"},
+                "days": {"type": "integer", "description": "Max age in days for job postings (default: 90).", "default": 90},
+                "limit": {"type": "integer", "description": "Max jobs to ingest (optional).", "default": 50}
+            }
+        }
+    },
+    {
         "name": "delegate_job_worker",
         "description": "Delegates an autonomous application or inspection task to an AGY CLI subagent with --dangerously-skip-permissions, complete candidate dossier, and isolated log tracking.",
         "inputSchema": {
@@ -344,7 +357,7 @@ def handle_spawn_agy_worker(args: Dict[str, Any]) -> str:
     raw_prompt = args.get("task_prompt", "")
     working_dir = args.get("working_dir", str(PROJECT_ROOT))
     convo_id = args.get("conversation_id")
-    effort = args.get("effort", "high")
+    effort = args.get("effort", "medium")
     timeout_sec = args.get("timeout_sec", 300)
 
     # Prepend full candidate context dossier if not already present
@@ -605,6 +618,28 @@ def handle_find_remote_jobs(args: Dict[str, Any]) -> str:
         "jobs": jobs
     }, indent=2)
 
+def handle_find_datanerd_jobs(args: Dict[str, Any]) -> str:
+    from engine.scraper import scrape_datanerd
+    from engine.db import insert_job, maybe_update_text_summary
+    title = args.get("title", "Data Engineer")
+    country = args.get("country", "India")
+    days = args.get("days", 90)
+    limit = args.get("limit", 50)
+    logger.info(f"Finding DataNerd jobs for '{title}' in '{country}' (days={days}, limit={limit})...")
+    jobs = scrape_datanerd(title=title, country=country, days_back=days, limit=limit)
+    new_count = 0
+    for j in jobs:
+        if insert_job(j, refresh_summary=False):
+            new_count += 1
+    if new_count > 0:
+        maybe_update_text_summary(force=True)
+    return json.dumps({
+        "success": True,
+        "retrieved_count": len(jobs),
+        "ingested_count": new_count,
+        "jobs": jobs[:15]
+    }, indent=2)
+
 def handle_delegate_job_worker(args: Dict[str, Any]) -> str:
     from engine.agent_delegator import delegate_job_to_agent
     job_id = args.get("job_id", "")
@@ -650,6 +685,7 @@ DISPATCH_MAP = {
     "gemini_batch_answer": handle_gemini_batch_answer,
     "evaluate_job_ai": handle_evaluate_job_ai,
     "find_remote_jobs": handle_find_remote_jobs,
+    "find_datanerd_jobs": handle_find_datanerd_jobs,
     "delegate_job_worker": handle_delegate_job_worker,
     "get_company_delegator": handle_get_company_delegator,
 }

@@ -47,7 +47,7 @@ def apply_to_barclays_workday(
             resume_path = str(default_pdf)
     resume_abs = str(Path(resume_path).resolve()) if resume_path and Path(resume_path).exists() else ""
 
-    submit_action = 'await page.click(\'button[data-automation-id="pageFooterNextButton"]\');' if submit else '// Staged at Review'
+    submit_action = 'console.log("[[SUBMIT_CLICK_ATTEMPT]]"); await page.click(\'button[data-automation-id="pageFooterNextButton"]\');' if submit else 'console.log("[[SUBMIT_CLICK_NONE]]"); // Staged at Review'
 
     script = f"""(async () => {{
 const spaces = await listTaskSpaces();
